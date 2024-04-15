@@ -215,14 +215,14 @@ def set_traefik_proxy():
 
             template_info = {"routing_port": net_info['port'],
                              "url": net_info['url'],
-                             "traefik_name": traefik_service_name}
+                             "k8_service": pod.k8_name}
             match net_info['protocol']:
                 case "tcp":
-                    tcp_proxy_info[pod.k8_name] = template_info
+                    tcp_proxy_info[traefik_service_name] = template_info
                 case "http":
-                    http_proxy_info[pod.k8_name] = template_info
+                    http_proxy_info[traefik_service_name] = template_info
                 case "postgres":
-                    postgres_proxy_info[pod.k8_name] = template_info
+                    postgres_proxy_info[traefik_service_name] = template_info
                 case "local_only":
                     # when users only need networking to connect to other pods in the same namespace
                     pass
