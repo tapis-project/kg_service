@@ -300,9 +300,7 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
     def check_pod_template(cls, v):
         # Get rid of tag, we don't check that at all.
         if v.count(":") > 1:
-            raise ValueError("pod_template cannot have more than one ':' in the string. Should be used to separate the tag from the image name.")
-        if ":" in v:
-            v = v.split(":")[0]
+            raise ValueError("pod_template cannot have more than one ':' in the string. Used to separate the tag from the image name.")
         
         templates = ["template/neo4j", "template/postgres"]
 
@@ -325,7 +323,8 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
 
         if v.startswith("templates/") and v not in templates:
             raise ValueError(f"pod_template must be one of the following: {templates}.")
-        elif v not in custom_allow_list:
+        # compare image name without :tag
+        elif v.split(':')[0] not in custom_allow_list:
             raise ValueError(f"Custom pod_template images must be in allowlist. Speak to admin")
 
         return v
