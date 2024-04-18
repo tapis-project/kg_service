@@ -84,9 +84,9 @@ def spawn_pod(pod_id, tenant_id, site_id):
     try:
         if not pod.pod_template.startswith("template/"):
             start_generic_pod(pod=pod, image=pod.pod_template, revision=1)
-        elif pod.pod_template == 'template/neo4j':
+        elif pod.pod_template.split(":")[0] == 'template/neo4j':
             start_neo4j_pod(pod=pod, revision=1)
-        elif pod.pod_template == 'template/postgres':
+        elif pod.pod_template.split(":")[0] == 'template/postgres':
             start_postgres_pod(pod=pod, revision=1)
         else:
             logger.critical(f"pod_template found no working functions. Running graceful_rm_pod.")

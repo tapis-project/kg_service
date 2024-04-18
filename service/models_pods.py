@@ -321,7 +321,7 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
 
         custom_allow_list += templates
 
-        if v.startswith("templates/") and v not in templates:
+        if v.startswith("templates/") and v.split(":")[0] not in templates:
             raise ValueError(f"pod_template must be one of the following: {templates}.")
         # compare image name without :tag
         elif v.split(':')[0] not in custom_allow_list:

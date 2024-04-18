@@ -55,15 +55,18 @@ def start_postgres_pod(pod, revision: int):
     volumes.append(client.V1Volume(name='certs', secret = secret_volume))
     volume_mounts.append(client.V1VolumeMount(name="certs", mount_path="/etc/ssl/later"))
 
+    # Uses user specified tag or default to 15.
+    image_tag = pod.pod_template.split(":")[1] if ":" in pod.pod_template else "15"
+
     container = {
         "name": pod.k8_name,
         "revision": revision,
-        "image": "postgres:15",
+        "image": f"postgres:{image_tag}",
         "command": ["docker-entrypoint.sh"],
         "args": [
           "-c", "ssl=on",
-          "-c", "ssl_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem",#"-c ssl_cert_file=/var/lib/postgresql/server.crt",
-          "-c", "ssl_key_file=/etc/ssl/private/ssl-cert-snakeoil.key"#"-c ssl_key_file=/var/lib/postgresql/server.key"
+          "-c", "ssl_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem",
+          "-c", "ssl_key_file=/etc/ssl/private/ssl-cert-snakeoil.key"
         ],
         "ports_dict": {
             "postgres": 5432,
@@ -92,17 +95,6 @@ def start_neo4j_pod(pod, revision: int):
     # Volumes
     volumes = []
     volume_mounts = []
-
-    # Create PVC if requested.
-    # if pod.persistent_volume:
-    #     try:
-    #         create_pvc(name = pod.k8_name)
-    #     except:
-    #         # Could already exist. This needs to be vastly improved.
-    #         pass
-    #     persistent_volume = client.V1PersistentVolumeClaimVolumeSource(claim_name=pod.k8_name)
-    #     volumes.append(client.V1Volume(name='user-volume', persistent_volume_claim = persistent_volume))
-    #     volume_mounts.append(client.V1VolumeMount(name="user-volume", mount_path="/var/lib/neo4j/data"))
 
     nfs_nfs_ip = get_nfs_ip()
 
