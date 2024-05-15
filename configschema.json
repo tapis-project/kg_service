@@ -120,19 +120,37 @@
             },
             "max_memory": {
               "type": "integer",
-              "description": "Maximum memory (RAM) available on the node in GB."
+              "description": "Maximum memory (RAM) allowed for this queue in GB."
             },
-            "default_memory": {
+            "default_memory_limit": {
               "type": "integer",
-              "description": "Default memory (RAM) allocation for the node in GB."
+              "description": "Default memory (RAM) limit for this queue in GB."
+            },
+            "default_memory_request": {
+              "type": "integer",
+              "description": "Default memory (RAM) request for this queue in GB."
+            },
+            "min_memory": {
+              "type": "integer",
+              "description": "Minimum memory (RAM) allowed for this queue in GB.",
+              "default": 256
             },
             "max_cpus": {
               "type": "integer",
-              "description": "Maximum number of CPUs available on the node."
+              "description": "Maximum CPU value allowed for this queue."
             },
-            "default_cpus": {
+            "default_cpu_limit": {
               "type": "integer",
-              "description": "Default number of CPUs allocated for the node."
+              "description": "Default CPU limit for pods on this queue."
+            },
+            "default_cpu_request": {
+              "type": "integer",
+              "description": "Default CPU request for pods on this queue."
+            },
+            "min_cpus": {
+              "type": "integer",
+              "description": "Minimum CPU value allowed for this queue.",
+              "default": 250
             },
             "tolerations": {
               "type": "array",
@@ -189,14 +207,14 @@
                     "type": "string",
                     "description": "Activation resource for the GPU device. What you put in K8 'spec.containers[X].resources.requests' to activate this GPU. e.g. 'nvidia.com/gpu' or 'nvidia.com/gpu.shared"
                   },
-                  "default_gpu_count": {
+                  "default_gpu_request": {
                     "type": "integer",
-                    "description": "Default number of GPU resources for the device when GPU is in use.",
+                    "description": "Default int a user can request for this device.",
                     "default": 1
                   },
-                  "max_gpu_count": {
+                  "max_gpu_request": {
                     "type": "integer",
-                    "description": "Maximum number of GPU resources for the device.",
+                    "description": "Maximum gpus a user can request for this device. Time-sliced GPUs should say 1 unless they work different, if so, contact admin.",
                     "default": 1
                   }
                 }

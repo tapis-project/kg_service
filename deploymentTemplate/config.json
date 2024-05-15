@@ -51,5 +51,13 @@
         "log_ex": 43200
     },
     "tacc_tenant_object": {
-    }
+    },
+    "cluster_name": "default",
+    "cluster_queues": [
+        {
+            "queue_name": "default",
+            "default": true,
+            "description": "running with no Kubernetes extras"
+        }
+    ]
 }

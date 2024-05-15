@@ -28,6 +28,15 @@ from models_misc import PermissionsModel, CredentialsModel, LogsModel
 from models_volumes import Volume
 from models_snapshots import Snapshot
 
+def get_queue_by_name(cluster_queues, queue_name):
+    logger.debug("top of kubernetes_utils.deduct_queue_settings().")
+
+    for queue in cluster_queues:
+        if queue['queue_name'] == queue_name:
+            return queue
+    return None
+
+
 class Password(TapisModel, table=True, validate=True):
     # Required
     pod_id: str = Field(..., description = "Name of this pod.", primary_key = True)
@@ -189,8 +198,8 @@ class PodBase(TapisApiModel):
     time_to_stop_default: int = Field(43200, description = "Default time (sec) for pod to run from instance start. -1 for unlimited. 12 hour default.")
     time_to_stop_instance: int | None = Field(None, description = "Time (sec) for pod to run from instance start. Reset each time instance is started. -1 for unlimited. None uses default.")
     networking: Dict[str, Networking] = Field({"default": {"protocol": "http", "port": 5000}}, description = 'Networking information. `{"url_suffix": {"protocol": "http"  "tcp", "port": int}}`', sa_column=Column(JSON))
-    resources: Resources = Field({}, description = 'Pod resource management `{"cpu_limit": 3000, "mem_limit": 3000, "cpu_request": 500, "mem_limit": 500, "gpu": 0}`', sa_column=Column(JSON))
-
+    resources: Resources = Field({}, description = 'Pod resource management `{"cpu_limit": 3000, "mem_limit": 3000, "cpu_request": 500, "mem_limit": 500, "gpus": 0}`', sa_column=Column(JSON))
+    compute_queue: str = Field("default", description = "Queue to run pod in. `default` is the default queue.")
 
 class PodBaseRead(PodBase):
     # Provided
@@ -369,6 +378,20 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
                     raise ValueError(f"networking key must be lowercase alphanumeric. Default is 'default'.")
                 if len(env_key) > 64 or len(env_key) < 3:
                     raise ValueError(f"networking key length must be between 3-64 characters. Inputted length: {len(env_key)}")
+        return v
+
+    @validator('compute_queue')
+    def check_compute_queue(cls, v):
+        if v:
+            # Ensure compute queue alphanumeric.
+            res = re.fullmatch(r'[a-z0-9]+', v)
+            if not res:
+                raise ValueError(f"compute_queue must be lowercase alphanumeric.")
+
+            ### Check if the queue exists in config, database later
+            deducted_queue = get_queue_by_name(conf.cluster_queues, v)
+            if not deducted_queue:
+                raise ValueError(f"compute_queue must be in cluster_queues list in cluster configuration.")
         return v
 
     @root_validator(pre=False)

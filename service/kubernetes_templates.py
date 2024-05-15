@@ -76,6 +76,7 @@ def start_postgres_pod(pod, revision: int):
             "POSTGRES_PASSWORD": password.user_password
         },
         "mounts": [volumes, volume_mounts],
+        "queue": pod.compute_queue,
         "mem_request": pod.resources.get("mem_request"),
         "cpu_request": pod.resources.get("cpu_request"),
         "mem_limit": pod.resources.get("mem_limit"),
@@ -162,6 +163,7 @@ def start_neo4j_pod(pod, revision: int):
             "apoc.initializer.system.2": f"CREATE USER {password.user_username} IF NOT EXISTS SET PLAINTEXT PASSWORD '{password.user_password}' SET PASSWORD CHANGE NOT REQUIRED"
         },
         "mounts": [volumes, volume_mounts],
+        "queue": pod.compute_queue,
         "mem_request": pod.resources.get("mem_request"),
         "cpu_request": pod.resources.get("cpu_request"),
         "mem_limit": pod.resources.get("mem_limit"),
@@ -222,6 +224,7 @@ def start_generic_pod(pod, image, revision: int):
         "ports_dict": ports_dict,
         "environment": pod.environment_variables.copy(),
         "mounts": [volumes, volume_mounts],
+        "queue": pod.compute_queue,
         "mem_request": pod.resources.get("mem_request"),
         "cpu_request": pod.resources.get("cpu_request"),
         "mem_limit": pod.resources.get("mem_limit"),
