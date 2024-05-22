@@ -337,6 +337,7 @@ def deduct_queue_settings(
     # must transform to dict(str, str)
     node_selector_keyval = deducted_queue.get('node_selector', None)
     # validate that node selector string is comma seperated key val
+    node_selector = None
     if node_selector_keyval:
         try:
             ns_key, ns_val = node_selector_keyval.split(',')
