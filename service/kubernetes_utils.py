@@ -406,10 +406,10 @@ def deduct_queue_settings(
                 logger.error(msg)
                 raise KubernetesStartContainerError(msg)
             # time-sliced gpus should only count as 1 even if multiple slices are available
-            if "gpu.shared" in activation_resource:
-                total_gpus += 1
-            else:
-                total_gpus += gpu_resource.get('max_gpu_request', 0)
+            # if "gpu.shared" in activation_resource:
+            #     total_gpus += 1
+            # else:
+            total_gpus += gpu_resource.get('max_gpu_request', 0)
 
         logger.debug(f"Total gpus available: {total_gpus}")
 
