@@ -18,6 +18,12 @@ from api_volumes_volid_func import router as router_volumes_volumeid_func
 from api_snapshots import router as router_snapshots
 from api_snapshots_snapid import router as router_snapshots_snapshotid
 from api_snapshots_snapid_func import router as router_snapshots_snapshotid_func
+from api_templates import router as router_templates
+from api_templates_templateid import router as router_templates_templateid
+from api_templates_templateid_tags import router as router_templates_templateid_tags
+from api_templates_templateid_func import router as router_templates_templateid_func
+from api_images import router as router_images
+from api_images_imageid import router as router_images_imageid
 from api_misc import router as router_misc
 
 
@@ -87,7 +93,7 @@ api = FastAPI(
         Middleware(GlobalsMiddleware),
         Middleware(
             CORSMiddleware,
-            allow_origins=["http://localhost:3001"],#, "http://localhost:3001", "localhost:5000", "http://localhost:5000", "localhost"],
+            allow_origins=["http://localhost:3000"],#, "http://localhost:3001", "localhost:5000", "http://localhost:5000", "localhost"],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["X-Tapis-Token", "Origin", "Access-Control-Request-Methods", "*"],
@@ -100,6 +106,14 @@ api = FastAPI(
             authz_callback=authorization)
     ])
 
+# templates
+api.include_router(router_templates)
+api.include_router(router_templates_templateid)
+api.include_router(router_templates_templateid_tags)
+api.include_router(router_templates_templateid_func)
+# images
+api.include_router(router_images)
+api.include_router(router_images_imageid)
 # snapshots
 api.include_router(router_snapshots)
 api.include_router(router_snapshots_snapshotid)

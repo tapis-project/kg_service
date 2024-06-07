@@ -21,6 +21,7 @@ from kubernetes_utils import get_current_k8_services, get_current_k8_pods, rm_co
 from codes import AVAILABLE, DELETING, STOPPED, ERROR, REQUESTED, COMPLETE, RESTART, ON, OFF
 from stores import pg_store, SITE_TENANT_DICT
 from models_pods import Pod
+from models_templates_tags import combine_pod_and_template_recursively
 from models_volumes import Volume
 from models_snapshots import Snapshot
 from volume_utils import files_listfiles, files_delete, files_mkdir
@@ -200,7 +201,8 @@ def set_traefik_proxy():
     tcp_proxy_info = {}
     http_proxy_info = {}
     postgres_proxy_info = {}
-    for pod in all_pods:
+    for input_pod in all_pods:
+        pod = combine_pod_and_template_recursively(input_pod, input_pod.template, tenant=input_pod.tenant_id, site=input_pod.site_id)
         # Each pod can have up to 3 networking objects with custom filled port/protocol/name
         for net_name, net_info in pod.networking.items():
             if not isinstance(net_info, dict):

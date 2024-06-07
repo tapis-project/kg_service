@@ -80,6 +80,11 @@
         "description": "Maximum GPU allocation pod is allowed to have in resources.gpus.",
         "default": 1
       },
+      "postgres_engine_echo_for_debug": {
+        "type": "boolean",
+        "description": "Whether or not to echo postgres engine queries for debugging.",
+        "default": false
+      },
       "cluster_name": {
         "type": "string",
         "description": "Name of the cluster."

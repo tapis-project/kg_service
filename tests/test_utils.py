@@ -168,6 +168,7 @@ def response_format(rsp):
     assert 'message' in data.keys()
     assert 'status' in data.keys()
     assert 'version' in data.keys()
+    assert 'metadata' in data.keys()
     return data
 
 def basic_response_checks(rsp):

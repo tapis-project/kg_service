@@ -167,11 +167,16 @@ def test_update_volume_no_change(headers):
 
 ### Pod with Volume Mounted!
 def test_create_pod_with_volume(headers):
-    # Definition
     pod_def = {
         "pod_id": test_pod_1,
-        "pod_template": "template/neo4j",
-        "description": "Test neo4j pod with mounted volume",
+        "image": "tiangolo/uvicorn-gunicorn-fastapi",
+        "description": "Test fastapi server pod",
+        "networking": {
+            "default": {
+                "port": 5000,
+                "protocol": "http"
+            }
+        },
         "volume_mounts": {
             test_volume_1: {
                 "type": "tapisvolume",

@@ -19,7 +19,7 @@ class CommandChannel(BinaryTaskQueue):
         queues_list = ["tacc"]
         #queues_list = conf.get('spawner_host_queues')
         if name not in queues_list:
-            raise Exception('Invalid Queue name.')
+            raise Exception(f'Invalid Queue name: {name}')
 
         super().__init__(name=f'command_channel_{name}')
 
