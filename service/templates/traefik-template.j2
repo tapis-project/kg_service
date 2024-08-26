@@ -15,6 +15,7 @@ http:
         customRequestHeaders:
           host: "localhost:5000"
         customResponseHeaders:
+          access-control-allow-origin: ""
           host: "localhost:5000"
     error-handler:
       errors:
@@ -54,7 +55,7 @@ http:
     {{ pname }}:
       loadBalancer:
         servers:
-         - url: http://{{ pname }}:{{ pdata.routing_port }}
+         - url: http://{{ pdata.k8_service }}:{{ pdata.routing_port }}
     {% endfor %}
 
 {% if tcp_proxy_info or postgres_proxy_info -%}
@@ -82,11 +83,11 @@ tcp:
     {{ pname }}:
       loadBalancer:
         servers:
-         - address: {{ pname }}:{{ pdata.routing_port }}
+         - address: {{ pdata.k8_service }}:{{ pdata.routing_port }}
     {% endfor %}
     {% for pname, pdata in postgres_proxy_info.items() -%}
     {{ pname }}:
       loadBalancer:
         servers:
-         - address: {{ pname }}:{{ pdata.routing_port }}
+         - address: {{ pdata.k8_service }}:{{ pdata.routing_port }}
     {% endfor %}

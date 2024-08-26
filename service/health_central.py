@@ -206,15 +206,23 @@ def set_traefik_proxy():
             if not isinstance(net_info, dict):
                 net_info = net_info.dict()
 
+            # name should be pods-tacc-tacc-mypod unless specified, if so
+            # then something like pods-tacc-tacc-mypod-mynet
+            if net_name != "default":
+                traefik_service_name = f"{pod.k8_name}-{net_name}"
+            else:
+                traefik_service_name = pod.k8_name
+
             template_info = {"routing_port": net_info['port'],
-                             "url": net_info['url']}
+                             "url": net_info['url'],
+                             "k8_service": pod.k8_name}
             match net_info['protocol']:
                 case "tcp":
-                    tcp_proxy_info[pod.k8_name] = template_info
+                    tcp_proxy_info[traefik_service_name] = template_info
                 case "http":
-                    http_proxy_info[pod.k8_name] = template_info
+                    http_proxy_info[traefik_service_name] = template_info
                 case "postgres":
-                    postgres_proxy_info[pod.k8_name] = template_info
+                    postgres_proxy_info[traefik_service_name] = template_info
                 case "local_only":
                     # when users only need networking to connect to other pods in the same namespace
                     pass
