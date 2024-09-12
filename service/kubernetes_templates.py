@@ -58,7 +58,7 @@ def start_postgres_pod(pod, revision: int):
     container = {
         "name": pod.k8_name,
         "revision": revision,
-        "image": "postgres:15",
+        "image": "postgres:16.2",
         "command": ["docker-entrypoint.sh"],
         "args": [
           "-c", "ssl=on",
