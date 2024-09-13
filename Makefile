@@ -55,6 +55,12 @@ export SERVICE_NAME := pods
 # SERVICE_PASS to use throughout. Must be filled.
 export SERVICE_PASS := password
 
+# TEST_ABACO_SERVICE_PASSWORD to use throughout. Must be filled for testing (it has ability to create tokens)
+export TEST_ABACO_SERVICE_PASS := changeme
+
+# STATIC_NFS_IP to use throughout. Must be filled.
+export STATIC_NFS_IP := 10.96.175.175
+
 # DEV_TOOLS bool. Whether or not to start jupyter + mount pods/service folder in pods (main).
 # options: "false" | "true"
 # default: "false"
@@ -76,12 +82,14 @@ help:
 up: vars build
 	@echo "Makefile: $(GREEN)up$(NC)"
 	@echo "  🔍 : Looking to run ./burnup in deployment folder."
-	rm -rf deployment; mkdir deployment; cp -r deployment-template/* deployment;
+	rm -rf deployment; mkdir deployment; cp -r deploymentTemplate/* deployment;
 	cd deployment
 	@echo "  🔨 : Created deployment folder with templates."
 	@sed -i 's/"version".*/"version": "$(TAG)",/g' config.json
 	@sed -i 's/MAKEFILE_SERVICE_NAME/$(SERVICE_NAME)/g' *
 	@sed -i 's/MAKEFILE_SERVICE_PASS/$(SERVICE_PASS)/g' *
+	@sed -i 's/MAKEFILE_TEST_ABACO_SERVICE_PASS/$(TEST_ABACO_SERVICE_PASS)/g' *
+	@sed -i 's/MAKEFILE_STATIC_NFS_IP/$(STATIC_NFS_IP)/g' *
 	@sed -i 's/MAKEFILE_TAG/$(TAG)/g' *
 	@echo "  🔥 : Running burnup."
 ifeq ($(DEV_TOOLS),true)
@@ -101,10 +109,15 @@ else
 	@echo "  🔗 : Jupyter Lab URL: dev_tools is set to 'false'"
 endif
 	@echo "  🔗 : API URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-traefik | grep -o -P '(?<= 80:)\d+(?=/TCP)')$(NC)/v3"
-	@echo "  🔗 : Docs URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-api-nodeport | grep -o -P '(?<=8000:)\d+(?=/TCP)')$(NC)/docs"
-	@echo "  🔗 : Spec URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-api-nodeport | grep -o -P '(?<=8000:)\d+(?=/TCP)')$(NC)/openapi.json"
+	@echo "  🔗 : Docs URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-api | grep -o -P '(?<=8000:)\d+(?=/TCP)')$(NC)/docs"
+	@echo "  🔗 : Spec URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-api | grep -o -P '(?<=8000:)\d+(?=/TCP)')$(NC)/openapi.json"
 	@echo "  🔗 : Traefik Dash URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-traefik | grep -o -P '(?<=8080:)\d+(?=/TCP)')$(NC)/dashboard"
 	@echo ""
+
+
+#: Initialize a few templates
+init-data:
+	@echo "Not yet implemented"
 
 
 # Runs pytest in the pods-api container
@@ -124,6 +137,7 @@ build: vars
 	@echo "Makefile: $(GREEN)build$(NC)"
 	@echo "  🔨 : Running image build."
 	@echo "  🌎 : Using daemon: $(LCYAN)minikube$(NC)"
+	@echo "  🏃 : Building: This part takes a while if it takes a while."
 	@echo ""
 	minikube image build -t $(SERVICE_NAME)/pods-api:$$TAG ./
 	@echo ""
@@ -207,5 +221,18 @@ ifeq ($(filter $(DEV_TOOLS),true false),)
 else
 	echo "  ℹ️  dev_tools:      $(LCYAN)$(DEV_TOOLS)$(NC)"
 endif
+
+	echo ""
+
+ifeq ($(DEV_TOOLS),true)
+	@echo "  🔗 : Jupyter Lab URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-api-jupyter | grep -o -P '(?<=8888:).*(?=/TCP)')$(NC)"
+else
+	@echo "  🔗 : Jupyter Lab URL: dev_tools is set to 'false'"
+endif
+	@echo "  🔗 : API URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-traefik | grep -o -P '(?<= 80:)\d+(?=/TCP)')$(NC)/v3"
+	@echo "  🔗 : Docs URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-api | grep -o -P '(?<=8000:)\d+(?=/TCP)')$(NC)/docs"
+	@echo "  🔗 : Spec URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-api | grep -o -P '(?<=8000:)\d+(?=/TCP)')$(NC)/openapi.json"
+	@echo "  🔗 : Traefik Dash URL: $(LCYAN)http://$$(minikube ip):$$(kubectl get service pods-traefik | grep -o -P '(?<=8080:)\d+(?=/TCP)')$(NC)/dashboard"
+	@echo ""
 
 	echo ""

@@ -69,7 +69,9 @@ logger.warning(f"Using the following databases with alembic: {db_names}")
 from models_pods import Pod, Password
 from models_volumes import Volume
 from models_snapshots import Snapshot
-from models_admin import Template
+from models_templates import Template
+from models_images import Image
+from models_templates_tags import TemplateTag
 
 target_metadata = SQLModel.metadata
 

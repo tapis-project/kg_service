@@ -1,13 +1,15 @@
 from codes import ERROR, SPAWNER_SETUP, CREATING, \
     REQUESTED, DELETING
-from models_pods import Pod, Password
+from models_pods import Pod, Password, PodBaseFull
+from models_templates_tags import TemplateTag, TemplateTagPodDefinition, derive_template_info
 from kubernetes_utils import create_pod, create_service, create_pvc, KubernetesError
 from kubernetes import client, config
 
 from tapisservice.config import conf
 from tapisservice.logs import get_logger
 from tapisservice.errors import BaseTapisError
-from volume_utils import get_nfs_ips
+from volume_utils import get_nfs_ip
+import re
 
 logger = get_logger(__name__)
 
@@ -16,212 +18,144 @@ config.load_incluster_config()
 k8 = client.CoreV1Api()
 
 
-def start_postgres_pod(pod, revision: int):
-    logger.debug(f"Attempting to start postgres pod; name: {pod.k8_name}; revision: {revision}")
+def combine_pod_and_template_recursively(input_obj, template_name, seen_templates=None, tenant: str = None, site: str = None):
+    """
+    --- run with
+    pod = Pod.db_get_with_pk(pk_id='testingfastapi', tenant='dev', site='tacc')
+    d = combine_pod_and_template_recursively(pod, "template21:car@2024-06-11-18:09:39")
+    d.description
+    """
+    if seen_templates is None:
+        seen_templates = set()
 
-    password = Password.db_get_with_pk(pod.pod_id, pod.tenant_id, pod.site_id)
+    if template_name:
+        if template_name in seen_templates:
+            raise ValueError(f"Infinite loop detected: template {template_name} is referenced more than once in template waterfal.")
+        seen_templates.add(template_name)
 
-    # Volumes
-    volumes = []
-    volume_mounts = []
+        template_name_str, template, template_tag = derive_template_info(template_name, tenant, site)
+        modified_fields = get_modified_template_fields(TemplateTagPodDefinition().dict(), template_tag.pod_definition)
 
-    nfs_ssh_ip, nfs_nfs_ip = get_nfs_ips()
+        # First, recursively combine the input_obj with the next template in the chain
+        input_obj = combine_pod_and_template_recursively(input_obj, modified_fields.get('template'), seen_templates, tenant, site)
 
-    # Create PVC if requested.
-    if pod.volume_mounts:
-        for vol_name, vol_info in pod.volume_mounts.items():
-            full_k8_name = f"{pod.k8_name}--{vol_name}"
-            match vol_info.get("type"):
-                case "tapisvolume":
-                    if conf.nfs_develop_mode:
-                        logger.debug("Skipping nfs volume mount as nfs_develop_mode is set to True")
-                    else:
-                        nfs_volume = client.V1NFSVolumeSource(path = f"/", server = nfs_nfs_ip) # f"/podsnfs/{pod.tenant_id}/volumes/{vol_name}"
-                        volumes.append(client.V1Volume(name = full_k8_name, nfs = nfs_volume))
-                        volume_mounts.append(client.V1VolumeMount(name = full_k8_name, mount_path = vol_info.get("mount_path"), sub_path = f"{pod.tenant_id}/volumes/{vol_name}")) # vol_info.get("sub_path")))
-                case "tapissnapshot":
-                    if conf.nfs_develop_mode:
-                        logger.debug("Skipping nfs volume mount as nfs_develop_mode is set to True")
-                    else:
-                        nfs_volume = client.V1NFSVolumeSource(path = f"/", server = nfs_nfs_ip) # f"/podsnfs/{pod.tenant_id}/snapshots/{vol_name}"
-                        volumes.append(client.V1Volume(name = full_k8_name, nfs = nfs_volume))
-                        volume_mounts.append(client.V1VolumeMount(name = full_k8_name, mount_path = vol_info.get("mount_path"), sub_path = f"{pod.tenant_id}/snapshots/{vol_name}")) # vol_info.get("sub_path")))
-                case "pvc":
-                    create_pvc(name = full_k8_name)
-                    persistent_volume = client.V1PersistentVolumeClaimVolumeSource(claim_name = full_k8_name)
-                    volumes.append(client.V1Volume(name = full_k8_name, persistent_volume_claim = persistent_volume))
-                    volume_mounts.append(client.V1VolumeMount(name = full_k8_name, mount_path = vol_info.get("mount_path"), sub_path = f"{pod.tenant_id}/volumes/{vol_name}"))
-                case _:
-                    pass
-                    #error!
+        # Then, apply the current template to the input_obj
+        try:
+            logger.debug("Attempting to combine pod and template recursively")
+            for mod_key, mod_val in modified_fields.items():
+                logger.debug(f"mod_key: {mod_key}; mod_val: {mod_val}")
+                if mod_key.startswith("resources."):
+                    outer_arg, inner_arg = resources.split('.') # resources.gpus
+                    outer_obj = getattr(input_obj, outer_arg) # resources
+                    new_obj_value = template_tag.pod_definition[outer_arg][inner_arg]
+                    setattr(outer_obj, inner_arg, new_obj_value)
+                elif mod_key == "networking":
+                    # must take template3, update with template2, template,1 and then pod, in that order
+                    # Preserving order of objs, pod being the most important.
+                    final_network_obj = getattr(input_obj, mod_key)
+                    for network_name, network_def in template_tag.pod_definition[mod_key].items():                    
+                        final_network_obj.update({network_name: network_def})
+                    setattr(input_obj, mod_key, final_network_obj)
+                elif mod_key.startswith("volume_mount."):
+                    print('dog')
+                elif mod_key.startswith("template"):
+                    pass ## Don't need this one
+                elif mod_key in input_obj.modified_fields:
+                    pass ## Don't modify user-modified fields, sans the above as they're dict updates and not overwrites
+                else:
+                    setattr(input_obj, mod_key, mod_val)
 
+            if input_obj.resources:
+                input_obj.resources = input_obj.resources.dict()
 
-    # Create and mount certs neccessary for bolt TLS.
-    secret_volume = client.V1SecretVolumeSource(secret_name='pods-certs')
-    volumes.append(client.V1Volume(name='certs', secret = secret_volume))
-    volume_mounts.append(client.V1VolumeMount(name="certs", mount_path="/etc/ssl/later"))
+        except Exception as e:
+            logger.debug(f'Got exception when attempting to combine pod and templates: {e}')
 
-    container = {
-        "name": pod.k8_name,
-        "revision": revision,
-        "image": "postgres",
-        "command": ["docker-entrypoint.sh"],
-        "args": [
-          "-c", "ssl=on",
-          "-c", "ssl_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem",#"-c ssl_cert_file=/var/lib/postgresql/server.crt",
-          "-c", "ssl_key_file=/etc/ssl/private/ssl-cert-snakeoil.key"#"-c ssl_key_file=/var/lib/postgresql/server.key"
-        ],
-        "ports_dict": {
-            "postgres": 5432,
-        },
-        "environment": {
-            "POSTGRES_USER": password.user_username,
-            "POSTGRES_PASSWORD": password.user_password
-        },
-        "mounts": [volumes, volume_mounts],
-        "mem_request": pod.resources.get("mem_request"),
-        "cpu_request": pod.resources.get("cpu_request"),
-        "mem_limit": pod.resources.get("mem_limit"),
-        "cpu_limit": pod.resources.get("cpu_limit"),
-    }
-
-    # Create init_container, container, and service.
-    create_pod(**container)
-    create_service(name = pod.k8_name, ports_dict = container["ports_dict"])
+    return input_obj
 
 
-def start_neo4j_pod(pod, revision: int):
-    logger.debug(f"Attempting to start neo4j pod; name: {pod.k8_name}; revision: {revision}")
-
-    password = Password.db_get_with_pk(pod.pod_id, pod.tenant_id, pod.site_id)
-
-    # Volumes
-    volumes = []
-    volume_mounts = []
-
-    # Create PVC if requested.
-    # if pod.persistent_volume:
-    #     try:
-    #         create_pvc(name = pod.k8_name)
-    #     except:
-    #         # Could already exist. This needs to be vastly improved.
-    #         pass
-    #     persistent_volume = client.V1PersistentVolumeClaimVolumeSource(claim_name=pod.k8_name)
-    #     volumes.append(client.V1Volume(name='user-volume', persistent_volume_claim = persistent_volume))
-    #     volume_mounts.append(client.V1VolumeMount(name="user-volume", mount_path="/var/lib/neo4j/data"))
-
-    nfs_ssh_ip, nfs_nfs_ip = get_nfs_ips()
-
-    # Create PVC if requested.
-    if pod.volume_mounts:
-        for vol_name, vol_info in pod.volume_mounts.items():
-            full_k8_name = f"{pod.k8_name}--{vol_name}"
-            match vol_info.get("type"):
-                case "tapisvolume":
-                    if conf.nfs_develop_mode:
-                        logger.debug("Skipping nfs volume mount as nfs_develop_mode is set to True")
-                    else:
-                        nfs_volume = client.V1NFSVolumeSource(path = f"/", server = nfs_nfs_ip) # f"/podsnfs/{pod.tenant_id}/volumes/{vol_name}"
-                        volumes.append(client.V1Volume(name = full_k8_name, nfs = nfs_volume))
-                        volume_mounts.append(client.V1VolumeMount(name = full_k8_name, mount_path = vol_info.get("mount_path"), sub_path = f"{pod.tenant_id}/volumes/{vol_name}")) # vol_info.get("sub_path")))
-                case "tapissnapshot":
-                    if conf.nfs_develop_mode:
-                        logger.debug("Skipping nfs volume mount as nfs_develop_mode is set to True")
-                    else:
-                        nfs_volume = client.V1NFSVolumeSource(path = f"/", server = nfs_nfs_ip) # f"/podsnfs/{pod.tenant_id}/snapshots/{vol_name}"
-                        volumes.append(client.V1Volume(name = full_k8_name, nfs = nfs_volume))
-                        volume_mounts.append(client.V1VolumeMount(name = full_k8_name, mount_path = vol_info.get("mount_path"), sub_path = f"{pod.tenant_id}/snapshots/{vol_name}")) # vol_info.get("sub_path")))
-                case "pvc":
-                    create_pvc(name = full_k8_name)
-                    persistent_volume = client.V1PersistentVolumeClaimVolumeSource(claim_name = full_k8_name)
-                    volumes.append(client.V1Volume(name = full_k8_name, persistent_volume_claim = persistent_volume))
-                    volume_mounts.append(client.V1VolumeMount(name = full_k8_name, mount_path = vol_info.get("mount_path"), sub_path = f"{pod.tenant_id}/volumes/{vol_name}"))
-                case _:
-                    pass
-                    #error!
+def get_modified_template_fields(original_template, modified_template_def):
+    """
+    Returns a dictionary of fields that have been modified from a base template
+    Meaning, returns fields that user defined in template.
+    """
+    changed_fields = {}
+    for key, value in original_template.items():
+        if key not in modified_template_def or value != modified_template_def[key]:
+            changed_fields[key] = modified_template_def[key]
+    if changed_fields.get('resources'):
+        ### resources.gpus, resources.mem_Limit, etc exists.
+        # Only return resources in dict if subfield not null, so we delete null subfields
+        for resource_key, resource_val in changed_fields['resources'].copy().items():
+            if resource_val is None:
+                del changed_fields['resources'][resource_key]
+    return changed_fields
 
 
-    # Create and mount certs neccessary for bolt TLS.
-    #secret_volume = client.V1SecretVolumeSource(secret_name='pods-certs')
-    #volumes.append(client.V1Volume(name='certs', secret = secret_volume))
-    #volume_mounts.append(client.V1VolumeMount(name="certs", mount_path="/certificates/bolt"))
-
-    # Init new user/pass https://neo4j.com/labs/apoc/4.1/operational/init-script/
-    container = {
-        "name": pod.k8_name,
-        "revision": revision,
-        "image": "notchristiangarcia/neo4j:4.4",
-        "command": [
-            '/bin/bash',
-            '-c',
-            ('mkdir /certificates &&'
-             'openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /certificates/snakeoil.key -out /certificates/snakeoil.crt -subj "/CN=neo4j" && '
-             'chmod -R 777 /certificates && '
-             'export NEO4J_dbms_default__advertised__address=$(hostname -f) && '
-             'exec /docker-entrypoint.sh "neo4j"')
-        ],
-        "ports_dict": {
-            "browser": 7474,
-            "bolt": 7687
-        },
-        "environment": {
-            #"NEO4JLABS_PLUGINS": '["apoc", "n10s"]', # not needed with custom notchristiangarcia/neo4j image
-            "NEO4J_dbms_ssl_policy_bolt_enabled": "true",
-            "NEO4J_dbms_ssl_policy_bolt_base__directory": "/certificates", # Can't mount anything to /var/lib/neo4j. Neo4j attempts chown, read-only. So change dir.
-            "NEO4J_dbms_ssl_policy_bolt_private__key": "snakeoil.key",
-            "NEO4J_dbms_ssl_policy_bolt_public__certificate": "snakeoil.crt",
-            "NEO4J_dbms_ssl_policy_bolt_client__auth": "NONE",
-            "NEO4J_dbms_security_auth__enabled": "true",
-            "NEO4J_dbms_mode": "SINGLE",
-            "NEO4J_apoc_import_file_enabled": "true",
-            "NEO4J_apoc_export_file_enabled": "true",
-            # Create users here with env and apoc. Different format than Neo4J. Kinda borked, might change. github.com/neo4j-contrib/neo4j-apoc-procedures/issues/2120
-            # Pods admin user
-            "apoc.initializer.system.1": f"CREATE USER {password.admin_username} IF NOT EXISTS SET PLAINTEXT PASSWORD '{password.admin_password}' SET PASSWORD CHANGE NOT REQUIRED",
-            # Users user
-            "apoc.initializer.system.2": f"CREATE USER {password.user_username} IF NOT EXISTS SET PLAINTEXT PASSWORD '{password.user_password}' SET PASSWORD CHANGE NOT REQUIRED"
-        },
-        "mounts": [volumes, volume_mounts],
-        "mem_request": pod.resources.get("mem_request"),
-        "cpu_request": pod.resources.get("cpu_request"),
-        "mem_limit": pod.resources.get("mem_limit"),
-        "cpu_limit": pod.resources.get("cpu_limit"),
-        "user": None
-    }
-
-    # Create init_container, container, and service.
-    create_pod(**container)
-    create_service(name = pod.k8_name, ports_dict = container["ports_dict"])
-
-
-def start_generic_pod(pod, image, revision: int):
+### This is quite an important function
+def start_generic_pod(input_pod, revision: int):
+    ###
+    ### Templates
+    ###
+    # This all is needed as I need an object that can validate (PodBaseFull)
+    # And I need template or non-template pods to have the same fields. get_with_pk returns complete dict
+    # PodBaseFull returns dict with Pydantic models as vals. This forces both cases to work the same.
+    pod = PodBaseFull(**input_pod.dict().copy()) # Create a copy of pod data we'll merge template data into
     logger.debug(f"Attempting to start generic pod; name: {pod.k8_name}; revision: {revision}")
 
-    # Volumes
+    if pod.template:
+        # Derive the final pod object by combining the pod and templates
+        final_pod = combine_pod_and_template_recursively(pod, pod.template, tenant=pod.tenant_id, site=pod.site_id)
+        logger.debug(f"final_pod -----------------------\n{final_pod.display()}")
+
+        ###
+        ### SECRETS
+        ###
+        # Need to replace all "<<TAPIS_vars>>" with vals from secrets for example needs to work for "dsadsadsa <<TAPIS_mysecret>> dsadsadsa".
+        # currently just the passwords db table. Eventually that'll become pods_env which itself could reference sk if that's needed.
+        pods_env = Password.db_get_with_pk(pod.pod_id, pod.tenant_id, pod.site_id)
+        pods_env = pods_env.dict()
+        if final_pod.environment_variables:
+            for key, val in final_pod.environment_variables.items():
+                if isinstance(val, str):
+                    # regex to create list of [<<TAPIS_*>> strings, str of inner variable without >><<]
+                    matches = re.findall(r'<<TAPIS_(.*?)>>', val)
+                    for match in matches:
+                        final_pod.environment_variables[key] = val.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
+        #command
+        if final_pod.command:
+            for key in final_pod.command:
+                if isinstance(key, str):
+                    matches = re.findall(r'<<TAPIS_(.*?)>>', key)
+                    for match in matches:
+                        final_pod.command[key] = key.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
+        #arguments
+        if final_pod.arguments:
+            for key in final_pod.arguments:
+                if isinstance(key, str):
+                    matches = re.findall(r'<<TAPIS_(.*?)>>', key)
+                    for match in matches:
+                        final_pod.arguments[key] = key.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
+
     volumes = []
     volume_mounts = []
 
-    nfs_ssh_ip, nfs_nfs_ip = get_nfs_ips()
+    nfs_nfs_ip = get_nfs_ip()
 
     # Create PVC if requested.
     if pod.volume_mounts:
         for vol_name, vol_info in pod.volume_mounts.items():
+            vol_info = vol_info.dict() # turn Resource back into dict.
             full_k8_name = f"{pod.k8_name}--{vol_name}"
             match vol_info.get("type"):
                 case "tapisvolume":
-                    if conf.nfs_develop_mode:
-                        logger.debug("Skipping nfs volume mount as nfs_develop_mode is set to True")
-                    else:
-                        nfs_volume = client.V1NFSVolumeSource(path = f"/", server = nfs_nfs_ip) # f"/podsnfs/{pod.tenant_id}/volumes/{vol_name}"
-                        volumes.append(client.V1Volume(name = full_k8_name, nfs = nfs_volume))
-                        volume_mounts.append(client.V1VolumeMount(name = full_k8_name, mount_path = vol_info.get("mount_path"), sub_path = f"{pod.tenant_id}/volumes/{vol_name}")) # vol_info.get("sub_path")))
+                    nfs_volume = client.V1NFSVolumeSource(path = f"/", server = nfs_nfs_ip) # f"/podsnfs/{pod.tenant_id}/volumes/{vol_name}"
+                    volumes.append(client.V1Volume(name = full_k8_name, nfs = nfs_volume))
+                    volume_mounts.append(client.V1VolumeMount(name = full_k8_name, mount_path = vol_info.get("mount_path"), sub_path = f"{pod.tenant_id}/volumes/{vol_name}")) # vol_info.get("sub_path")))
                 case "tapissnapshot":
-                    if conf.nfs_develop_mode:
-                        logger.debug("Skipping nfs volume mount as nfs_develop_mode is set to True")
-                    else:
-                        nfs_volume = client.V1NFSVolumeSource(path = f"/", server = nfs_nfs_ip) # f"/podsnfs/{pod.tenant_id}/snapshots/{vol_name}"
-                        volumes.append(client.V1Volume(name = full_k8_name, nfs = nfs_volume))
-                        volume_mounts.append(client.V1VolumeMount(name = full_k8_name, mount_path = vol_info.get("mount_path"), sub_path = f"{pod.tenant_id}/snapshots/{vol_name}")) # vol_info.get("sub_path")))
+                    nfs_volume = client.V1NFSVolumeSource(path = f"/", server = nfs_nfs_ip) # f"/podsnfs/{pod.tenant_id}/snapshots/{vol_name}"
+                    volumes.append(client.V1Volume(name = full_k8_name, nfs = nfs_volume))
+                    volume_mounts.append(client.V1VolumeMount(name = full_k8_name, mount_path = vol_info.get("mount_path"), sub_path = f"{pod.tenant_id}/snapshots/{vol_name}")) # vol_info.get("sub_path")))
                 case "pvc":
                     create_pvc(name = full_k8_name)
                     persistent_volume = client.V1PersistentVolumeClaimVolumeSource(claim_name = full_k8_name)
@@ -243,15 +177,18 @@ def start_generic_pod(pod, image, revision: int):
     container = {
         "name": pod.k8_name,
         "command": pod.command,
+        "args": pod.arguments,
         "revision": revision,
-        "image": image,
+        "image": pod.image,
         "ports_dict": ports_dict,
         "environment": pod.environment_variables.copy(),
         "mounts": [volumes, volume_mounts],
-        "mem_request": pod.resources.get("mem_request"),
-        "cpu_request": pod.resources.get("cpu_request"),
-        "mem_limit": pod.resources.get("mem_limit"),
-        "cpu_limit": pod.resources.get("cpu_limit"),
+        "queue": pod.compute_queue,
+        "mem_request": pod.resources.mem_request,
+        "cpu_request": pod.resources.cpu_request,
+        "mem_limit": pod.resources.mem_limit,
+        "cpu_limit": pod.resources.cpu_limit,
+        "gpus": pod.resources.gpus,
         "user": None
     }
 

@@ -18,16 +18,16 @@ router = APIRouter()
 @router.get(
     "/pods/volumes",
     tags=["Volumes"],
-    summary="get_volumes",
-    operation_id="get_volumes",
+    summary="list_volumes",
+    operation_id="list_volumes",
     response_model=VolumesResponse)
-async def get_volumes():
+async def list_volumes():
     """
     Get all volumes in your respective tenant and site that you have READ or higher access to.
 
     Returns a list of volumes.
     """
-    logger.info("GET /pod/volumes - Top of get_volumes.")
+    logger.info("GET /pod/volumes - Top of list_volumes.")
 
     # TODO search
     volumes =  Volume.db_get_all_with_permission(user=g.username, level='READ', tenant=g.request_tenant_id, site=g.site_id)
@@ -70,9 +70,7 @@ async def create_volume(new_volume: NewVolume):
     logger.debug(f"API has updated volume status to CREATING")
 
     # Create folder
-    res = files_mkdir(
-        system_id = conf.nfs_tapis_system_id,
-        path = f"/volumes/{volume.volume_id}")
+    res = files_mkdir(path = f"/volumes/{volume.volume_id}")
 
     # If we get to this point we can update pod status
     volume.status = AVAILABLE

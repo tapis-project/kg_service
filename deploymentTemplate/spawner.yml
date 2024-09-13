@@ -1,32 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: MAKEFILE_SERVICE_NAME-health
+  name: MAKEFILE_SERVICE_NAME-spawner
 spec:
   selector:
     matchLabels:
-      app: MAKEFILE_SERVICE_NAME-health
+      app: MAKEFILE_SERVICE_NAME-spawner
   template:
     metadata:
       labels:
-        app: MAKEFILE_SERVICE_NAME-health
+        app: MAKEFILE_SERVICE_NAME-spawner
     spec:
       serviceAccountName: MAKEFILE_SERVICE_NAME-serviceaccount
       containers:
-      - name: MAKEFILE_SERVICE_NAME-health
+      - name: MAKEFILE_SERVICE_NAME-spawner
         imagePullPolicy: Never
         image: MAKEFILE_SERVICE_NAME/pods-api:MAKEFILE_TAG
         #command: ["sleep", "2000000"]
         resources:
           requests:
-            cpu: ".5"
-            memory: "1G"
+            cpu: ".4"
+            memory: ".4G"
           limits:
             cpu: "3"
             memory: "3G"
         env:
         - name: PODS_COMPONENT
-          value: health
+          value: spawner
         - name: DEBUG_SLEEP_LOOP
           value: 'false'
         - name: SERVICE_PASSWORD

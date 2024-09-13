@@ -6,6 +6,8 @@
 # Set DEBUG_SLEEP_LOOP to "true" to keep the container running for debugging.
 
 if [ $PODS_COMPONENT = "api" ]; then
+    # Write openapi.json to /home/tapis/docs/
+    python3 -u /home/tapis/service/auto_openapi_writer.py
     # Set up stores during init.
     python3 -u /home/tapis/service/stores.py
     # Start API
@@ -15,6 +17,10 @@ if [ $PODS_COMPONENT = "api" ]; then
 elif [ $PODS_COMPONENT = "health" ]; then
     # Start health
     python3 -u /home/tapis/service/health.py
+
+elif [ $PODS_COMPONENT = "health-central" ]; then
+    # Start health
+    python3 -u /home/tapis/service/health_central.py
 
 elif [ $PODS_COMPONENT = "spawner" ]; then
     # Start spawner

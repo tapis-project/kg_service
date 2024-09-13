@@ -16,12 +16,13 @@ logger = get_logger(__name__)
 base_url = os.environ.get('base_url', 'http://172.17.0.1:8000')
 case = os.environ.get('case', 'snake')
 testuser_tenant = os.environ.get('tenant', 'dev')
-nfs_develop_mode = conf.nfs_develop_mode
 
 def get_service_tapis_client():
     sk_url = os.environ.get('sk_url', conf.primary_site_admin_tenant_base_url)
     tenant_id = os.environ.get('tenant', 'admin')
-    service_password = os.environ.get('service_password', conf.service_password)
+    test_abaco_service_password = os.environ.get('test_abaco_service_password', conf.test_abaco_service_password)
+    if test_abaco_service_password == "changeme":
+        raise KeyError("test_abaco_service_password must be set in config or env for tests to run (it creates tokens)")
     jwt = os.environ.get('jwt', None)
     resource_set = os.environ.get('resource_set', 'local')
     custom_spec_dict = os.environ.get('custom_spec_dict', None)
@@ -29,9 +30,9 @@ def get_service_tapis_client():
     # if there is no tenant_id, use the service_tenant_id and primary_site_admin_tenant_base_url configured for the service:
     t = Tapis(base_url=sk_url or base_url,
               tenant_id=tenant_id,
-              username='abaco',
+              username='abaco', ### NOTE: Must be abaco as it can generate tokens
               account_type='service',
-              service_password=service_password,
+              service_password=test_abaco_service_password,
               jwt=jwt,
               resource_set=resource_set,
               custom_spec_dict=custom_spec_dict,
@@ -46,12 +47,6 @@ def get_service_tapis_client():
     return t
 
 t = get_service_tapis_client()
-
-
-@pytest.fixture(scope='session')
-def skip_if_develop_mode():
-    if nfs_develop_mode:
-        pytest.skip("Skipping test because nfs_develop_mode is set to True.")
 
 # In dev:
 # service account owns abaco_admin and abaco_privileged roles
@@ -173,6 +168,7 @@ def response_format(rsp):
     assert 'message' in data.keys()
     assert 'status' in data.keys()
     assert 'version' in data.keys()
+    assert 'metadata' in data.keys()
     return data
 
 def basic_response_checks(rsp):

@@ -9,7 +9,7 @@ from health import graceful_rm_pod, graceful_rm_volume
 from models_pods import Pod, Password
 from models_volumes import Volume
 from channels import CommandChannel
-from kubernetes_templates import start_generic_pod, start_neo4j_pod, start_postgres_pod
+from kubernetes_templates import start_generic_pod #, start_neo4j_pod, start_postgres_pod
 from kubernetes_utils import create_pvc
 from tapisservice.config import conf
 from tapisservice.logs import get_logger
@@ -82,16 +82,7 @@ def spawn_pod(pod_id, tenant_id, site_id):
     logger.debug(f"spawner has updated pod status to SPAWNER_SETUP")
 
     try:
-        if not pod.pod_template.startswith("template/"):
-            start_generic_pod(pod=pod, image=pod.pod_template, revision=1)
-        elif pod.pod_template == 'template/neo4j':
-            start_neo4j_pod(pod=pod, revision=1)
-        elif pod.pod_template == 'template/postgres':
-            start_postgres_pod(pod=pod, revision=1)
-        else:
-            logger.critical(f"pod_template found no working functions. Running graceful_rm_pod.")
-            graceful_rm_pod(pod, f"spawner found no matching pod template, set status to DELETING")
-            return
+        start_generic_pod(pod, revision=1)
     except Exception as e:
         logger.critical(f"Got error when creating pod. Running graceful_rm_pod. e: {e}")
         graceful_rm_pod(pod, f"spawner got error when creating pod, set status to DELETING")

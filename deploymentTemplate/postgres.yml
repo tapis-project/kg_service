@@ -23,8 +23,8 @@ spec:
         ]
         resources:
           requests:
-            cpu: ".5"
-            memory: "1G"
+            cpu: ".4"
+            memory: ".4G"
           limits:
             cpu: "3"
             memory: "3G"
@@ -40,9 +40,13 @@ spec:
               key: postgres-password
         - name: PGSSLMODE
           value: "require"
-
         ports:
         - name: postgres
           containerPort: 5432
-          
-    # Should be a PVC mount here.
+        volumeMounts:
+        - name: pods-postgres-vol
+          mountPath: "/pgdata"
+      volumes:
+      - name: pods-postgres-vol
+        persistentVolumeClaim:
+          claimName: pods-postgres-vol

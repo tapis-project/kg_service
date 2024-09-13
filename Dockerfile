@@ -7,8 +7,8 @@ RUN useradd tapis -u 4872
 WORKDIR /home/tapis/
 
 # set the name of the api, for use by some of the common modules.
-ENV TAPIS_API pods
-ENV PYTHONPATH .:*:pods:pods/*
+ENV TAPIS_API=pods
+ENV PYTHONPATH=.:*:pods:pods/*
 
 ## PACKAGE INITIALIZATION
 COPY requirements.txt /home/tapis/
@@ -33,11 +33,16 @@ COPY SQLMODEL/main.py /usr/local/lib/python3.10/site-packages/sqlmodel/main.py
 COPY alembic /home/tapis/alembic
 COPY tests /home/tapis/tests
 COPY service /home/tapis/service
+COPY docs /home/tapis/docs
 COPY configschema.json entry.sh alembic.ini /home/tapis/
 RUN chmod +x /home/tapis/entry.sh
+# Add helpful navigation through filenames at root of container
+RUN touch /pods-code-in---home-tapis
 
 # Permission finalization
-#RUN chown -R tapis:tapis /home/tapis
+RUN chown -R tapis:tapis /home/tapis
 
+# Run everything as tapis user (uid 4872)
+USER tapis
 
 CMD ["/home/tapis/entry.sh"]

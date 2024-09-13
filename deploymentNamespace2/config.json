@@ -4,7 +4,7 @@
     "service_tenant_id": "admin",
     "service_site_id": "tacc",
     "service_name": "pods",
-    "service_password": "$env{SERVICE_PASSWORD}",
+    "service_password": "SERVICE_PASSWORD",
     "tenants": [
         "tacc",
         "dev",
@@ -17,13 +17,13 @@
     "tapisservice.auth_log_file": "/home/tapis/tapisservice.log",
     "tapisservice.logs_log_file": "/home/tapis/tapisservice.log",
     "tapisservice.tenants_log_file": "/home/tapis/tapisservice.log",
-    "postgres_user": "$env{POSTGRES_USERNAME}",
-    "postgres_pass": "$env{POSTGRES_PASSWORD}",
-    "postgres_host": "MAKEFILE_SERVICE_NAME-postgres",
-    "rabbitmq_uri": "amqp://pods-rabbitmq:5672",
-    "rabbitmq_dash_host": "pods-rabbitmq-dash",
-    "rabbitmq_user": "$env{RABBITMQ_USERNAME}",
-    "rabbitmq_pass": "$env{RABBITMQ_PASSWORD}",
+    "postgres_user": "pods-admin",
+    "postgres_pass": "adminadmin",
+    "postgres_host": "minikubeIp:nodePort",
+    "rabbitmq_uri": "amqp://minikubeIp:nodePort",
+    "rabbitmq_dash_host": "notNeededOutsideOfCentralSpace",
+    "rabbitmq_user": "pods-admin",
+    "rabbitmq_pass": "adminadmin",
     "image_allow_list": [
         "jstubbs/abaco_test",
         "tuyamei/smartfoodshed-server",
@@ -33,17 +33,14 @@
         "notchristiangarcia/vaapi-v1-f",
         "notchristiangarcia/vaapi-v1-b"
     ],
-    "nfs_tapis_system_id": "pods-nfs-server",
-    "nfs_pvc_name": "pods-nfs-vol",
-    "nfs_base_path": "/podsnfs/",
-    "nfs_develop_mode": true,
-    "nfs_develop_remote_url": "10.11.111.111",
+    "nfs_pvc_name": "notNeededOutsideOfCentralSpace",
+    "nfs_base_path": "/podsnfs",
     "pvc_storage_class_name": "standard",
     "spawner_host_id": 0,
     "spawner_host_queues": [
         "tacc"
     ],
-#DEV    "show_traceback": false,
+    "show_traceback": false,
     "site_id": "tacc",
     "global_site_object": {
         "site_rabbitmq_pass": "defaultpass"
@@ -53,5 +50,5 @@
         "log_ex": 43200
     },
     "tacc_tenant_object": {
-    }
+    }  
 }

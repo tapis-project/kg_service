@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 TAG = conf.version
 
 async def error_handler(request: Request, exc):
+    logger.debug(f"Top of Pods Service error handler. Got error: {repr(exc)}")
     response = None
     status_code: int = -1
     if conf.show_traceback:
@@ -46,8 +47,11 @@ async def error_handler(request: Request, exc):
             status_code = 500
         elif isinstance(exc, RequestValidationError) or isinstance(exc, ValidationError):
             error_list = []
+            logger.debug(f"Got validation error: {repr(exc)}")
             for error_dict in exc.errors():
                 error_list.append(f"{', '.join(str(err) for err in error_dict['loc'])}: {error_dict['msg']}")
+            if error_list is None:
+                response = error(msg=f'Unexpected. {repr(exc)}')
             response = error(msg=error_list)
             status_code = 400
         else:
@@ -111,10 +115,14 @@ def check_permissions(user, level, object, object_type, roles=None):
         logger.info(f"Found no permissions for user {user} on {object_type}: {eval(f'object.{object_type}_id')}. Permissions: {permissions}")
         return False
 
+    tenant_wide_level = permissions.get("TENANT")
     # Get user pem and compare to level.
     user_pem = codes.PermissionLevel(user_level)
     if user_pem >= level:
         logger.info(f"Allowing request - user has appropriate permission for {object_type}: {eval(f'object.{object_type}_id')}.")
+        return True
+    elif tenant_wide_level and codes.PermissionLevel(tenant_wide_level) >= level:
+        logger.info(f"Allowing request - TENANT has appropriate permission for {object_type}: {eval(f'object.{object_type}_id')}.")
         return True
     else:
         # we found the permission for the user but it was insufficient; return False right away

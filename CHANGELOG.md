@@ -1,13 +1,81 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## 1.6.1 - 2024-02-xx:
+
+### Breaking Changes:
+- No change.
+  
+### New features:
+- Changed CORS for tapis-ui integration.
+- Added auto saving openapi.json, removing manual step of copy/paste.
+- Updating openapi.json.
+- Added dev_tools useful links to `make vars`.
+
+### Bug fixes:
+- No change.
+
+
+## 1.6.0 - 2024-02-05
+
+### Breaking Changes:
+- No change.
+  
+### New features:
+- Added local_only protocol in pods networking.
+- GPU support within resources attr.
+
+### Bug fixes:
+- Pinned templated Postgres version.
+- Harden t init for startup.
+
+
+## 1.5.3 - 2023-12-01
+- `1.5.1` and `1.5.2`: No Changes. Jumping to `1.5.3` to match deployer version.
+
+### Breaking Changes:
+- Implemented direct access to NFS server instead of routing through Files for volumes/snapshots.
+    - This solves occassional networking hiccups causing troubles when Files couldn't be accessed.
+    - This solves deployment across multiple namespaces as Files access was a stickler.
+- Health is now split into health and health-central.
+    - `health-central` deploys with the main stack.
+        - It takes care of metrics, traefik management, and NFS management.
+    - `health` deploys with computer (health and spawner) in whatever namespace.
+        - Takes care of Kubernetes health and management in a particular namespace.
+- New deployment files for the above features along with deleting no longer used files.
+    - Works locally as well.
+- Fix in traefik to properly throw a 500 so proxy backup in nginx works properly when no location is matched.
+  
+### New features:
+- Added health deployment that doesn't restart, allowing for easier debugging.
+- Improvements to NFS permissions
+
+### Bug fixes:
+- Improvements for health regarding processes when new tenants are created while already running.
+
+
+## 1.5.0 - 2023-10-24
+
+### Breaking Changes:
+- No change.
+  
+### New features:
+- `action_logs` added to pod object along with logs endpoint for detailed audit of actions done on pod_id.
+
+### Bug fixes:
+- Fixed some user nested validation errors not showing proper error messages.
+- Ensure pods always save logs
+- Fixed migrations for action_logs and how it works if logs are empty.
+- Better normalized paths.
+
+
 ## 1.4.0 - 2023-07-06
 
 ### Breaking Changes:
 - No change.
   
 ### New features:
-- No change.
+- Better certs.
 
 ### Bug fixes:
 - No change.

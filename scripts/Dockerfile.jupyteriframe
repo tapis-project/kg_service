@@ -1,0 +1,10 @@
+#FROM quay.io/jupyter/scipy-notebook:2024-05-27
+FROM quay.io/jupyter/pytorch-notebook:cuda12-pytorch-2.4.0 
+USER root
+
+# Set the default password for the jovyan user to jovyan
+RUN echo "jovyan:jovyan" | chpasswd
+
+RUN echo "jovyan ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER jovyan

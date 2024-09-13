@@ -1,0 +1,64 @@
+{
+    "server": "dev",
+    "primary_site_admin_tenant_base_url": "https://admin.develop.tapis.io",
+    "service_tenant_id": "admin",
+    "service_site_id": "tacc",
+    "service_name": "pods",
+    "service_password": "$env{SERVICE_PASSWORD}",
+    "test_abaco_service_password": "$env{TEST_ABACO_SERVICE_PASSWORD}",
+    "tenants": [
+        "tacc",
+        "dev",
+        "admin"
+    ],
+    "version": "dev",
+    "log_file": "",
+    "log_level": "DEBUG",
+    "log_filing_strategy": "split",
+    "tapisservice.auth_log_file": "/home/tapis/tapisservice.log",
+    "tapisservice.logs_log_file": "/home/tapis/tapisservice.log",
+    "tapisservice.tenants_log_file": "/home/tapis/tapisservice.log",
+    "postgres_user": "$env{POSTGRES_USERNAME}",
+    "postgres_pass": "$env{POSTGRES_PASSWORD}",
+    "postgres_host": "MAKEFILE_SERVICE_NAME-postgres",
+    "rabbitmq_uri": "amqp://pods-rabbitmq:5672",
+    "rabbitmq_dash_host": "pods-rabbitmq-dash",
+    "rabbitmq_user": "$env{RABBITMQ_USERNAME}",
+    "rabbitmq_pass": "$env{RABBITMQ_PASSWORD}",
+    "image_allow_list": [
+        "jstubbs/abaco_test",
+        "tuyamei/smartfoodshed-server",
+        "ssquid/kapp",
+        "tiangolo/uvicorn-gunicorn-fastapi",
+        "av11/sd-webui-auto-bulk",
+        "postgres",
+        "notchristiangarcia/neo4j"
+    ],
+    "nfs_pvc_name": "pods-nfs-vol",
+    "nfs_base_path": "/podsnfs",
+    "pvc_storage_class_name": "standard",
+    "spawner_host_id": 0,
+    "spawner_host_queues": [
+        "tacc"
+    ],
+    "show_traceback": false,
+    "postgres_engine_echo_for_debug": false,
+    "site_id": "tacc",
+    "global_site_object": {
+        "site_rabbitmq_pass": "defaultpass"
+    },
+    "global_tenant_object": {
+        "log_ex_limit": 86400,
+        "log_ex": 43200
+    },
+    "tacc_tenant_object": {
+    },
+    "cluster_name": "default",
+    "cluster_queues": [
+        {
+            "queue_name": "default",
+            "default": true,
+            "description": "running with no Kubernetes extras"
+        }
+    ]
+}

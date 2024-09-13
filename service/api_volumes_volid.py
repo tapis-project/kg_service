@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from models_pods import Pod, NewPod, UpdatePod, PodResponse, Password, DeletePodResponse
+from models_pods import Pod, NewPod, UpdatePod, PodResponse, Password
 from models_volumes import Volume, VolumeResponse, DeleteVolumeResponse, UpdateVolume
 from channels import CommandChannel
 from tapisservice.tapisfastapi.utils import g, ok, error
@@ -67,7 +67,6 @@ async def delete_volume(volume_id):
 
     # Delete folder
     res = files_delete(
-        system_id = conf.nfs_tapis_system_id,
         path = f"/volumes/{volume.volume_id}")
 
     volume.db_delete()

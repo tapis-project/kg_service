@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from models_pods import Pod, NewPod, UpdatePod, PodResponse, Password, DeletePodResponse
+from models_pods import Pod, NewPod, UpdatePod, PodResponse, Password
 from models_snapshots import Snapshot, SnapshotResponse, DeleteSnapshotResponse, UpdateSnapshot
 from channels import CommandChannel
 from tapisservice.tapisfastapi.utils import g, ok, error
@@ -67,7 +67,6 @@ async def delete_snapshot(snapshot_id):
 
     # Delete folder
     res = files_delete(
-        system_id = conf.nfs_tapis_system_id,
         path = f"/snapshots/{snapshot.snapshot_id}")
 
     snapshot.db_delete()
