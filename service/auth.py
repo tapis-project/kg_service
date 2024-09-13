@@ -125,12 +125,16 @@ def check_route_permissions(request):
         ["/openapi.json", "GET", "NOT-API"],
         ["/traefik-config", "GET", "NOT-API"],
         ["/error-handler/{status}", "GET", "NOT-API"],
+        # OAuth2
+        ["/pods/auth", "GET", "NOT-API"],#codes.NONE],
+        ["/pods/auth/callback", "GET", "NOT-API"],#codes.NONE],
         # IMAGES
-        ["/pods/images/{image_id}", "GET", codes.NONE],
+        ["/pods/images/{image_id:path}", "GET", codes.NONE],
         ["/pods/images/{image_id}", "DELETE", codes.NONE],#"ONLY-ADMIN"], # this should require admin, but can't use codes.ADMIN as permissions not defined on # just need to edit tests for this to work
         ["/pods/images", "GET", codes.NONE],
         ["/pods/images", "POST", codes.NONE],
         # TEMPLATES
+        ["/pods/templates/tags", "GET", codes.NONE],
         ["/pods/templates/{template_id}/tags/{tag_id}", "GET", codes.READ],
         ["/pods/templates/{template_id}/tags", "GET", codes.READ],
         ["/pods/templates/{template_id}/tags", "POST", codes.USER],
@@ -149,6 +153,7 @@ def check_route_permissions(request):
         ["/pods/volumes/{volume_id}/permissions", "POST", codes.ADMIN],
         ["/pods/volumes/{volume_id}/list", "GET", codes.READ],
         ["/pods/volumes/{volume_id}/upload/{filename}", "POST", codes.USER],
+        ["/pods/volumes/{volume_id}/contents/{path:path}", "GET", codes.USER],
         ["/pods/volumes/{volume_id}", "GET", codes.READ],
         ["/pods/volumes/{volume_id}", "PUT", codes.USER],
         ["/pods/volumes/{volume_id}", "DELETE", codes.ADMIN],
@@ -159,6 +164,7 @@ def check_route_permissions(request):
         ["/pods/snapshots/{snapshot_id}/permissions/{user}", "DELETE", codes.ADMIN],
         ["/pods/snapshots/{snapshot_id}/permissions", "POST", codes.ADMIN],
         ["/pods/snapshots/{snapshot_id}/list", "GET", codes.READ],
+        ["/pods/snapshots/{snapshot_id}/contents/{path:path}", "GET", codes.USER],
         ["/pods/snapshots/{snapshot_id}", "GET", codes.READ],
         ["/pods/snapshots/{snapshot_id}", "PUT", codes.USER],
         ["/pods/snapshots/{snapshot_id}", "DELETE", codes.ADMIN],
@@ -174,6 +180,8 @@ def check_route_permissions(request):
         ["/pods/{pod_id}/start", "GET", codes.ADMIN],
         ["/pods/{pod_id}/restart", "GET", codes.ADMIN],
         ["/pods/{pod_id}/derived", "GET", codes.READ],
+        ["/pods/{pod_id_net}/auth", "GET", "NOT-API"],
+        ["/pods/{pod_id_net}/auth/callback", "GET", "NOT-API"],
         ["/pods/{pod_id}", "GET", codes.READ],
         ["/pods/{pod_id}", "PUT", codes.USER],
         ["/pods/{pod_id}", "DELETE", codes.ADMIN],
@@ -184,12 +192,16 @@ def check_route_permissions(request):
     # check that route matches one route with regex match. If it does, do pem check
     # for snapshots/volumes/pods
     for route in routes:
-        # check if method matches
+        # check if method matches current request's method
         if route[1] != request.method:
             continue
-        # check if route matches request.url.path
-        # convert {pod_id} or {volume_id} or {snapshot_id} to regex alphanumeric matches
-        regex_route_path = re.sub(r'\{.*?\}', '[a-zA-Z0-9-.@:]+', f"^{route[0]}$")
+        
+        # Convert {variable_name:path} to a regex that matches any characters including slashes
+        regex_route_path = re.sub(r'\{[^}]*:path\}', '.*', route[0])
+        # Convert {variable_name} (not followed by :path) to regex alphanumeric matches
+        regex_route_path = re.sub(r'\{[^}]*\}', '[^/]+', regex_route_path)
+        # Ensure the regex matches the entire path from start (^) to end ($)
+        regex_route_path = f"^{regex_route_path}$"
         if re.match(regex_route_path, request.url.path):
             logger.debug(f"Matched API route: {route[1]} - {route[0]}")
             matched_route = route
@@ -213,7 +225,12 @@ def check_route_permissions(request):
     if g.admin:
         has_pem = True
 
-    if "{pod_id}" in matched_route[0]:
+    if "{pod_id_net}" in matched_route[0]:
+        # pod_id_net can be `myid-networking3` for example. We need to get rid of the networking bit for permissions check
+        pod = check_object_id(request, 'pod', 2)
+        pod.pod_id = pod.pod_id.split("-")[0]
+        has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=matched_route[2] , roles=g.roles)
+    elif "{pod_id}" in matched_route[0]:
         pod = check_object_id(request, 'pod', 2)
         has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=matched_route[2] , roles=g.roles)
     elif "{volume_id}" in matched_route[0]:
@@ -232,7 +249,7 @@ def check_route_permissions(request):
 
     # check for codes.NONE
     if matched_route[2] == codes.NONE:
-        logger.info("Allowing request because of NONE code. Specs/Docs/Traefik/RootPaths don't need auth.")
+        logger.info("Allowing request because of NONE code. Specs/Docs/Traefik/OAuth/RootPaths don't need auth.")
         has_pem = True
         return
 

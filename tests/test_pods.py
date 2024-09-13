@@ -42,7 +42,7 @@ def teardown(headers):
         rsp = client.delete(f'/pods/volumes/{vol_id}', headers=headers)
 
 ##### Testing Pods
-def test_get_pods(headers):
+def test_list_pods(headers):
     rsp = client.get("/pods", headers=headers)
     result = basic_response_checks(rsp)
     assert result is not None
@@ -67,7 +67,7 @@ def test_create_pod(headers):
     assert result['pod_id'] == test_pod_1
     assert result['image'] == "tiangolo/uvicorn-gunicorn-fastapi"
 
-def test_check_get_pods(headers):
+def test_check_list_pods(headers):
     rsp = client.get("/pods", headers=headers)
     result = basic_response_checks(rsp)
     found_pod = False

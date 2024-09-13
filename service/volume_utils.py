@@ -231,6 +231,59 @@ def files_insert(file, path: str, tenant_id: str = "", base_path: str = "") -> N
 
     logger.info(f"Successfully uploaded file to path.")
 
+def files_download(path: str, zip: bool = False, tenant_id: str = "", base_path: str = "") -> Tuple:
+    """
+    Stream a file or directory from a given path. If the path is a directory and zip is True,
+    the directory is compressed into a ZIP archive and streamed.
+
+    Args:
+        path (str): The path to the file or directory to stream.
+        zip (bool, optional): Whether to compress the directory into a ZIP archive if the path is a directory. Defaults to False.
+
+    Returns:
+        Tuple: A generator function for streaming the file or ZIP archive, and the filename for the Content-Disposition header.
+    """
+    def file_generator(file_path: str):
+        with open(file_path, 'rb') as file:
+            yield from file
+
+    logger.debug("top of volume_utils.files_download().")
+
+    # Normalize path
+    path = os.path.abspath(path)
+
+    # Establish base_path w/ tenant
+    base_path = base_path or f"{conf.nfs_base_path}/{tenant_id or g.tenant_id}"
+    base_path = os.path.abspath(base_path)
+
+    nfs_file_path = f"{base_path}/{path}"
+    logger.debug(f"Attempting to download file/dir from path: {nfs_file_path}")
+    if os.path.isdir(nfs_file_path):
+        if zip:
+            # Create a ZIP archive from the directory and stream it
+            from zipfile import ZipFile
+            from io import BytesIO
+
+            zip_filename = os.path.basename(nfs_file_path.rstrip("/")) + ".zip"
+            zip_io = BytesIO()
+            with ZipFile(zip_io, 'w') as zip_file:
+                for root, dirs, files in os.walk(nfs_file_path):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, start=nfs_file_path)
+                        zip_file.write(file_path, arcname=arcname)
+            zip_io.seek(0)
+
+            return (b for b in zip_io), zip_filename
+        else:
+            raise NotImplementedError("Streaming directories is only supported with query parameter zip=True.")
+    elif os.path.isfile(nfs_file_path):
+        # Stream the file directly
+        filename = os.path.basename(nfs_file_path)
+        return file_generator(nfs_file_path), filename
+    else:
+        raise FileNotFoundError("The specified path does not exist or is not accessible.")
+
 def files_move(source_path:str, new_path: str, tenant_id: str = "", base_path: str = "") -> None:
     logger.debug("top of volume_utils.files_move().")
     # Normalize paths

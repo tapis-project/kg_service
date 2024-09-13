@@ -58,7 +58,7 @@ class Template(TapisTemplateBaseFull, table=True, validate=True):
     @validator('template_id')
     def check_template_id(cls, v):
         # In case we want to add reserved keywords.
-        reserved_template_ids = []
+        reserved_template_ids = ["tags"]
         if v in reserved_template_ids:
             raise ValueError(f"template_id overlaps with reserved template ids: {reserved_template_ids}")
         # Regex match full template_id to ensure a-z0-9.

@@ -48,7 +48,7 @@ def teardown(headers):
 
 
 ### Testing Pods
-def test_get_pods(headers):
+def test_list_pods(headers):
     rsp = client.get("/pods", headers=headers)
     result = basic_response_checks(rsp)
     assert result is not None
@@ -94,7 +94,7 @@ def test_pod_startup(headers):
 
 
 ### Testing Volumes
-def test_get_volumes(headers):
+def test_list_volumes(headers):
     rsp = client.get("/pods/volumes", headers=headers)
     result = basic_response_checks(rsp)
     assert result != None

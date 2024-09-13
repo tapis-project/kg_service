@@ -2,7 +2,9 @@ from fastapi import APIRouter, UploadFile
 from models_pods import Pod
 from models_volumes import Volume, VolumePermissionsResponse
 from models_misc import SetPermission, FilesListResponse, FilesUploadResponse
-from volume_utils import files_listfiles, files_insert
+from volume_utils import files_listfiles, files_insert, files_download
+from fastapi import Query, Path, File
+from fastapi.responses import StreamingResponse
 from channels import CommandChannel
 from tapisservice.tapisfastapi.utils import g, ok
 from tapisservice.config import conf
@@ -39,13 +41,64 @@ async def list_volume_files(volume_id):
     return ok(result=pruned_list_of_files, msg = "Volume file listing retrieved successfully.")
 
 
+@router.get(
+    "/pods/volumes/{volume_id}/contents/{path:path}",
+    tags=["Volumes"],
+    summary="get_volume_contents",
+    operation_id="get_volume_contents",
+    responses={
+        200: {
+            "description": "A streamed response of the file contents.",
+            "content": {"application/octet-stream": {}, "application/zip": {}}
+        }
+    }
+)
+async def get_volume_contents(
+        volume_id: str = Path(..., description="Unique identifier for the volume."),
+        path: str = Path(..., description="Path relative to the volume's root directory. Cannot be empty or /."),
+        zip: bool = Query(default=False, description="If true, directory contents are compressed using ZIP format.")):
+    """
+    Get file or directory contents as a stream of data from a Tapis Volume.
+
+    Use the **zip** query parameter to request directories as a zip archive. This is not allowed if path would result in all files in the volume being included. Please download individual directories, files or objects.
+    """
+    logger.info(f"GET /pods/volumes/{volume_id}/contents/{path} - Retrieving contents.")
+
+    volume = Volume.db_get_with_pk(volume_id, tenant=g.request_tenant_id, site=g.site_id)
+
+    # Validate path to prevent accessing all files on the host
+    if not path or path == "/":
+        raise KeyError("Requesting no path or / path is not allowed. Please download individual directories, files or objects.")
+
+    # Call files_download from volume_utils
+    file_content, filename = files_download(
+        path = f"/volumes/{volume.volume_id}/{path}",
+        zip=zip)
+    
+    if zip:
+        # If zip is True, file_content is a generator for the ZIP file
+        return StreamingResponse(
+            file_content,
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename={filename}"})
+    else:
+        # Assuming file_content is a generator for a regular file
+        return StreamingResponse(
+            file_content,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+
 @router.post(
     "/pods/volumes/{volume_id}/upload/{path}",
     tags=["Volumes"],
     summary="upload_to_volume",
     operation_id="upload_to_volume",
     response_model=FilesUploadResponse)
-async def upload_to_volume(volume_id, path, file: UploadFile):
+async def upload_to_volume(
+        volume_id: str = Path(..., description="Unique identifier for the volume."),
+        path: str = Path(..., description="Path within the volume where the file will be uploaded. Cannot be empty or /."),
+        file: UploadFile = File(..., description="The file to upload.")):
     """
     Upload to volume.
     """

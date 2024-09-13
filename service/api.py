@@ -97,7 +97,8 @@ api = FastAPI(
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["X-Tapis-Token", "Origin", "Access-Control-Request-Methods", "*"],
-            expose_headers=["x-tapis-token", "*"],
+            # I don't think we need X-TapisUsername, it's for auth testing, but it's here.
+            expose_headers=["X-TapisUsername", "x-tapis-token", "*"],
             max_age=600),
         Middleware(
             TapisMiddleware,

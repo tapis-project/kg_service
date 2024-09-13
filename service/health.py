@@ -399,6 +399,7 @@ def main():
     while True:
         logger.info(f"Running pods health checks. Now: {time.time()}")
         k8_pods = get_current_k8_pods() # Returns {pod_info, site, tenant, pod_id}
+        k8_services = get_current_k8_services()
 
         check_k8_pods(k8_pods)
         check_k8_services()

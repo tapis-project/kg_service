@@ -48,7 +48,7 @@ def teardown(headers):
 
 
 ### Testing Snapshots
-def test_get_snapshots(headers):
+def test_list_snapshots(headers):
     rsp = client.get("/pods/snapshots", headers=headers)
     result = basic_response_checks(rsp)
     assert result is not None
@@ -70,7 +70,7 @@ def test_create_volume(headers):
     time.sleep(2)
 
 
-def test_check_get_volumes(headers):
+def test_check_list_volumes(headers):
     rsp = client.get("/pods/volumes", headers=headers)
     result = basic_response_checks(rsp)
     found_pod = False
@@ -127,7 +127,7 @@ def test_create_snapshot(headers):
     time.sleep(2)
 
 
-def test_check_get_snapshots(headers):
+def test_check_list_snapshots(headers):
     rsp = client.get("/pods/snapshots", headers=headers)
     result = basic_response_checks(rsp)
     found_pod = False

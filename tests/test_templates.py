@@ -52,7 +52,7 @@ def teardown(headers):
 
 
 ### Testing Templates
-def test_get_templates(headers):
+def test_list_templates(headers):
     rsp = client.get("/pods/templates", headers=headers)
     result = basic_response_checks(rsp)
     print(result)

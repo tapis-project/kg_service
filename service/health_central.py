@@ -218,11 +218,27 @@ def set_traefik_proxy():
             template_info = {"routing_port": net_info['port'],
                              "url": net_info['url'],
                              "k8_service": pod.k8_name}
+
+            # The goal is: https://tacc.develop.tapis.io/v3/pods/{{pod_id}}/auth
+            pod_id_section, tapis_domain = net_info['url'].split('.pods.') ## Should return `mypod` & `tacc.tapis.io` with proper tenant and schmu
+            if '-' in pod_id_section:
+                pod_id, network_section = pod_id_section.split('-') # e.g. `mypod-networking2` if there's several networking objects
+            else:
+                pod_id = pod_id_section
+            logger.critical(f"pod_id: {pod_id}, tapis_domain: {tapis_domain}, net_info: {net_info}")
+            forward_auth_info = {
+                "tapis_auth": net_info.get('tapis_auth', True),
+                "auth_url": f"https://{tapis_domain}/v3/pods/{pod_id}/auth",
+                "tapis_auth_response_headers": net_info.get('tapis_auth_response_headers', []),
+            }
+
             match net_info['protocol']:
                 case "tcp":
                     tcp_proxy_info[traefik_service_name] = template_info
                 case "http":
                     http_proxy_info[traefik_service_name] = template_info
+                    if forward_auth_info['tapis_auth']:
+                        template_info.update(forward_auth_info)
                 case "postgres":
                     postgres_proxy_info[traefik_service_name] = template_info
                 case "local_only":
