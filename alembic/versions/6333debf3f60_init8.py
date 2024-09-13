@@ -1,3 +1,19 @@
+"""init8
+
+Revision ID: 6333debf3f60
+Revises: 96f8878302f1
+Create Date: 2024-06-14 02:36:42.894511
+
+"""
+from alembic import op
+import sqlalchemy as sa
+import sqlmodel              ##### Required when using sqlmodel and not use sqlalchemy
+from sqlalchemy.dialects import postgresql
+
+# revision identifiers, used by Alembic.
+revision = '6333debf3f60'
+down_revision = '96f8878302f1'
+branch_labels = None
 depends_on = None
 
 
