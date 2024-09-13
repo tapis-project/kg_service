@@ -2,6 +2,7 @@ import time
 from tapisservice.tenants import TenantCache
 from tapisservice.auth import get_service_tapis_client
 from tapisservice.logs import get_logger
+from tapipy.errors import BadRequestError
 from tapipy.tapis import TapisResult
 logger = get_logger(__name__)
 
