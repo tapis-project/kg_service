@@ -1,19 +1,3 @@
-"""init8
-
-Revision ID: 6333debf3f60
-Revises: 96f8878302f1
-Create Date: 2024-06-14 02:36:42.894511
-
-"""
-from alembic import op
-import sqlalchemy as sa
-import sqlmodel              ##### Required when using sqlmodel and not use sqlalchemy
-from sqlalchemy.dialects import postgresql
-
-# revision identifiers, used by Alembic.
-revision = '6333debf3f60'
-down_revision = '96f8878302f1'
-branch_labels = None
 depends_on = None
 
 
@@ -23,8 +7,6 @@ def upgrade(engine_name):
 
 def downgrade(engine_name):
     globals()["downgrade_alltenants"]()
-
-
 
 
 def upgrade_alltenants():
@@ -61,9 +43,9 @@ def upgrade_alltenants():
     )
     op.add_column('pod', sa.Column('arguments', postgresql.ARRAY(sa.String()), nullable=True))
     op.add_column('pod', sa.Column('modified_fields', postgresql.ARRAY(sa.String(), dimensions=1), nullable=True))
-    op.add_column('pod', sa.Column('image', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
-    op.add_column('pod', sa.Column('template', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
-    op.add_column('pod', sa.Column('compute_queue', sqlmodel.sql.sqltypes.AutoString(), nullable=True))
+    op.add_column('pod', sa.Column('image', sqlmodel.sql.sqltypes.AutoString(), nullable=True, server_default=sa.String('')))
+    op.add_column('pod', sa.Column('template', sqlmodel.sql.sqltypes.AutoString(), nullable=True, server_default=sa.String('')))
+    op.add_column('pod', sa.Column('compute_queue', sqlmodel.sql.sqltypes.AutoString(), nullable=True, server_default=sa.String('')))
     op.drop_column('pod', 'data_attached')
     op.drop_column('pod', 'pod_template')
     op.drop_column('pod', 'roles_inherited')
