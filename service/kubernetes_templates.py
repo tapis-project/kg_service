@@ -41,12 +41,12 @@ def combine_pod_and_template_recursively(input_obj, template_name, seen_template
 
         # Then, apply the current template to the input_obj
         try:
+            logger.debug("Attempting to combine pod and template recursively")
             for mod_key, mod_val in modified_fields.items():
+                logger.debug(f"mod_key: {mod_key}; mod_val: {mod_val}")
                 if mod_key.startswith("resources."):
-                    logger.critical('hey')
                     outer_arg, inner_arg = resources.split('.') # resources.gpus
                     outer_obj = getattr(input_obj, outer_arg) # resources
-                    logger.critical('oh no!')
                     new_obj_value = template_tag.pod_definition[outer_arg][inner_arg]
                     setattr(outer_obj, inner_arg, new_obj_value)
                 elif mod_key == "networking":

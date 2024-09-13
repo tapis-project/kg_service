@@ -31,7 +31,7 @@ async def delete_image(image_id):
 
 
 @router.get(
-    "/pods/images/{image_id}",
+    "/pods/images/{image_id:path}",
     tags=["Images"],
     summary="get_image",
     operation_id="get_image",

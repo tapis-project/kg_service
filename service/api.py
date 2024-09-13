@@ -106,6 +106,8 @@ api = FastAPI(
             authz_callback=authorization)
     ])
 
+# misc - must be first due to pods/auth route
+api.include_router(router_misc)
 # templates
 api.include_router(router_templates)
 api.include_router(router_templates_templateid)
@@ -126,5 +128,3 @@ api.include_router(router_volumes_volumeid_func)
 api.include_router(router_pods)
 api.include_router(router_pods_podsid)
 api.include_router(router_pods_podsid_func)
-# misc
-api.include_router(router_misc)

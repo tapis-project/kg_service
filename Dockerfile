@@ -7,8 +7,8 @@ RUN useradd tapis -u 4872
 WORKDIR /home/tapis/
 
 # set the name of the api, for use by some of the common modules.
-ENV TAPIS_API pods
-ENV PYTHONPATH .:*:pods:pods/*
+ENV TAPIS_API=pods
+ENV PYTHONPATH=.:*:pods:pods/*
 
 ## PACKAGE INITIALIZATION
 COPY requirements.txt /home/tapis/

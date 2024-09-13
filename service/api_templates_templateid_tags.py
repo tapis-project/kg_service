@@ -13,7 +13,7 @@ router = APIRouter()
 #### Template Tags
 @router.get(
     "/pods/templates/{template_id}/tags",
-    tags=["Templates", "Tags"],
+    tags=["Templates"],
     summary="list_template_tags",
     operation_id="list_template_tags",
     response_model=TemplateTagsSmallResponse)
@@ -35,7 +35,7 @@ async def list_template_tags(template_id):
 
 @router.post(
     "/pods/templates/{template_id}/tags",
-    tags=["Templates", "Tags"],
+    tags=["Templates"],
     summary="add_template_tag",
     operation_id="add_template_tag",
     response_model=TemplateTagResponse)
@@ -52,7 +52,7 @@ async def add_template_tag(template_id, new_template_tag: NewTemplateTag):
 
 @router.get(
     "/pods/templates/{template_id}/tags/{tag_id}",
-    tags=["Templates", "Tags"],
+    tags=["Templates"],
     summary="get_template_tags",
     operation_id="get_template_tags",
     response_model=TemplateTagsResponse)

@@ -14,16 +14,16 @@ router = APIRouter()
 @router.get(
     "/pods",
     tags=["Pods"],
-    summary="get_pods",
-    operation_id="get_pods",
+    summary="list_pods",
+    operation_id="list_pods",
     response_model=PodsResponse)
-async def get_pods():
+async def list_pods():
     """
     Get all pods in your respective tenant and site that you have READ or higher access to.
 
     Returns a list of pods.
     """
-    logger.info("GET /pods - Top of get_pods.")
+    logger.info("GET /pods - Top of list_pods.")
     # TODO search
     pods =  Pod.db_get_all_with_permission(user=g.username, level='READ', tenant=g.request_tenant_id, site=g.site_id)
     pods_to_show = []

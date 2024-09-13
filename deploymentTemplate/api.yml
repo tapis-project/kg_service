@@ -20,8 +20,8 @@ spec:
 #DEV        args: ["/home/tapis/entry.sh & jupyter lab service --ip=0.0.0.0 --allow-root --no-browser --ServerApp.token=''"]
         resources:
           requests:
-            cpu: ".5"
-            memory: "1G"
+            cpu: ".4"
+            memory: ".4G"
           limits:
             cpu: "3"
             memory: "3G"
