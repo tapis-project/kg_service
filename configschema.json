@@ -85,11 +85,7 @@
         "description": "Whether or not to echo postgres engine queries for debugging.",
         "default": false
       },
-      "cluster_name": {
-        "type": "string",
-        "description": "Name of the cluster."
-      },
-      "cluster_queues": {
+      "compute_queues": {
         "type": "array",
         "description": "List of node objects available to the spawner using this config.",
         "required": ["queue_name"],

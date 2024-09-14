@@ -319,8 +319,8 @@ def deduct_queue_settings(
     Returns:
         node_selector, tolerations, resources
     """
-    def get_queue_by_name(cluster_queues, queue_name):
-        for queue in cluster_queues:
+    def get_queue_by_name(compute_queues, queue_name):
+        for queue in compute_queues:
             if queue['queue_name'] == queue_name:
                 return queue
         return None
@@ -328,10 +328,10 @@ def deduct_queue_settings(
     logger.debug("top of kubernetes_utils.deduct_queue_settings().")
 
     ### Deduct queue!
-    deducted_queue = get_queue_by_name(conf.cluster_queues, requested_queue_name)
+    deducted_queue = get_queue_by_name(conf.compute_queues, requested_queue_name)
     if not deducted_queue:
         logger.warning(f"Queue not found for requested_queue_name: {requested_queue_name}. Using default queue.")
-        deducted_queue = get_queue_by_name(conf.cluster_queues, "default")
+        deducted_queue = get_queue_by_name(conf.compute_queues, "default")
 
     ### Node Selector - in the form of "gpu,v100"
     # must transform to dict(str, str)

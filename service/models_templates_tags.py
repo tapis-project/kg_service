@@ -375,9 +375,9 @@ class TemplateTagPodDefinition(TapisModel):
 
             #### Not needed for template tag, only for pod creation
             ### Check if the queue exists in config, database later
-            # deducted_queue = get_queue_by_name(conf.cluster_queues, v)
+            # deducted_queue = get_queue_by_name(conf.compute_queues, v)
             # if not deducted_queue:
-            #     raise ValueError(f"compute_queue must be in cluster_queues list in cluster configuration.")
+            #     raise ValueError(f"compute_queue must be in compute_queues list in cluster configuration.")
         return v
 
 
