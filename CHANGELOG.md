@@ -1,19 +1,34 @@
-# Change Log
+# Change Log for the Tapis Pods Service
+
 All notable changes to this project will be documented in this file.
 
-## 1.6.1 - 2024-02-xx:
+Please find documentation here:
+https://tapis.readthedocs.io/en/latest/index.html
+
+You may also reference live-docs based on the OpenAPI v3 specification here:
+https://tapis-project.github.io/live-docs
+
+## 1.7.0 - 2024-09-13:
 
 ### Breaking Changes:
-- No change.
+- Large DB model changes. Migrations should automate changes, but be warned.
   
 ### New features:
+- Added Pod Templates and Template Tags to define sharable Pod templates.
+- Added Image endpoints.
+- Added Volume & Snapshot download endpoints.
+- Added compute_queues, configurable with kubernetes flag. Allowing multi-GPU configuration.
+- Added initial workings for tapis-auth option for Pods to use Tapis auth. Will be fully implemented after client changes.
+- PVC pod volume option now exists permanently. Non-sharable, but can be useful.
+- Revamped auth logic for organizational purposes.
 - Changed CORS for tapis-ui integration.
+- Lots of changes for TapisUI.
 - Added auto saving openapi.json, removing manual step of copy/paste.
 - Updating openapi.json.
 - Added dev_tools useful links to `make vars`.
 
 ### Bug fixes:
-- No change.
+- Multi-slash object routing is now much better.
 
 
 ## 1.6.0 - 2024-02-05
