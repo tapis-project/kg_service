@@ -75,7 +75,7 @@ def downgrade_alltenants():
     op.add_column('pod', sa.Column('data_requests', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True))
     op.add_column('pod', sa.Column('roles_required', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True))
     op.add_column('pod', sa.Column('roles_inherited', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True))
-    op.add_column('pod', sa.Column('pod_template', sa.VARCHAR(), autoincrement=False, nullable=False, server_default=sa.String('')))
+    op.add_column('pod', sa.Column('pod_template', sa.VARCHAR(), autoincrement=False, nullable=False, server_default=sa.VARCHAR('')))
     op.add_column('pod', sa.Column('data_attached', postgresql.ARRAY(sa.VARCHAR()), autoincrement=False, nullable=True))
     op.drop_column('pod', 'compute_queue')
     op.drop_column('pod', 'template')
