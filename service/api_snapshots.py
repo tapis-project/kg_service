@@ -17,16 +17,16 @@ router = APIRouter()
 @router.get(
     "/pods/snapshots",
     tags=["Snapshots"],
-    summary="get_snapshots",
-    operation_id="get_snapshots",
+    summary="list_snapshots",
+    operation_id="list_snapshots",
     response_model=SnapshotsResponse)
-async def get_snapshots():
+async def list_snapshots():
     """
     Get all snapshots in your respective tenant and site that you have READ or higher access to.
 
     Returns a list of snapshots.
     """
-    logger.info("GET /pod/snapshots - Top of get_snapshots.")
+    logger.info("GET /pod/snapshots - Top of list_snapshots.")
 
     # TODO search
     snapshots =  Snapshot.db_get_all_with_permission(user=g.username, level='READ', tenant=g.request_tenant_id, site=g.site_id)

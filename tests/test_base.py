@@ -48,16 +48,23 @@ def teardown(headers):
 
 
 ### Testing Pods
-def test_get_pods(headers):
+def test_list_pods(headers):
     rsp = client.get("/pods", headers=headers)
     result = basic_response_checks(rsp)
     assert result is not None
 
 def test_create_neo4j_pod(headers):
-    # Definition
-    pod_def = {"pod_id": test_pod_1,
-               "pod_template": "template/neo4j",
-               "description": "Test Neo4j pod"}
+    pod_def = {
+        "pod_id": test_pod_1,
+        "image": "tiangolo/uvicorn-gunicorn-fastapi",
+        "description": "Test fastapi server pod",
+        "networking": {
+            "default": {
+                "port": 5000,
+                "protocol": "http"
+            }
+        },
+    }
     # Create pod
     rsp = client.post("/pods", data=json.dumps(pod_def), headers=headers)
     result = basic_response_checks(rsp)
@@ -65,7 +72,7 @@ def test_create_neo4j_pod(headers):
     # Check the pod
     assert result['status'] == "REQUESTED"
     assert result['pod_id'] == test_pod_1
-    assert result['pod_template'] == "template/neo4j"
+    assert result['image'] == "tiangolo/uvicorn-gunicorn-fastapi"
 
 def test_pod_startup(headers):
     i = 0
@@ -83,11 +90,11 @@ def test_pod_startup(headers):
     # Check the pod object
     assert result['status'] == "AVAILABLE"
     assert result['pod_id'] == test_pod_1
-    assert result['pod_template'] == "template/neo4j"
+    assert result['image'] == "tiangolo/uvicorn-gunicorn-fastapi"
 
 
 ### Testing Volumes
-def test_get_volumes(headers):
+def test_list_volumes(headers):
     rsp = client.get("/pods/volumes", headers=headers)
     result = basic_response_checks(rsp)
     assert result != None

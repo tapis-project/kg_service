@@ -5,6 +5,7 @@ import time
 import timeit
 import datetime
 import random
+import re
 from typing import Literal, Dict, List
 
 from jinja2 import Environment, FileSystemLoader
@@ -292,6 +293,145 @@ def stop_container(name: str):
             continue
     raise KubernetesStopContainerError("Error. Pod not deleted after 10 attempts.")
 
+def deduct_queue_settings(
+    requested_queue_name: str = "",
+    gpus_requested: int = 0,
+    mem_request: str | None = None,
+    cpu_request: str | None = None,
+    mem_limit: str | None = None,
+    cpu_limit: str | None = None):
+    """
+    Deducts K8 settings settings based on requested_queue_name and config.yml.
+    
+    Logic:
+    - If queue name is requested:
+        - sets tolerations
+        - sets node selector
+    If gpus are requested:
+        - sets above + gpu resources
+    If neither are requested:
+        - use default queue (no settings essentially)
+    
+    Inputs:
+        requested_queue_name (str, optional): if queue exists we'll use queue settings that exist.
+        gpus_requested (int, optional): number of gpus requested. Defaults to 0.
+    
+    Returns:
+        node_selector, tolerations, resources
+    """
+    def get_queue_by_name(compute_queues, queue_name):
+        for queue in compute_queues:
+            if queue['queue_name'] == queue_name:
+                return queue
+        return None
+
+    logger.debug("top of kubernetes_utils.deduct_queue_settings().")
+
+    ### Deduct queue!
+    deducted_queue = get_queue_by_name(conf.compute_queues, requested_queue_name)
+    if not deducted_queue:
+        logger.warning(f"Queue not found for requested_queue_name: {requested_queue_name}. Using default queue.")
+        deducted_queue = get_queue_by_name(conf.compute_queues, "default")
+
+    ### Node Selector - in the form of "gpu,v100"
+    # must transform to dict(str, str)
+    node_selector_keyval = deducted_queue.get('node_selector', None)
+    # validate that node selector string is comma seperated key val
+    if not node_selector_keyval:
+        node_selector = None
+    else:
+        try:
+            ns_key, ns_val = node_selector_keyval.split(',')
+            # insure vars are lowercase alphanumeric or - only
+            for v in [ns_key, ns_val]:      
+                res = re.fullmatch(r'[a-z][a-z0-9-]+', v)
+                if not res:
+                    msg = f"Node selector should be lowercase alphanumeric. Key/Val: {ns_key}/{ns_val}"
+                    logger.error(msg)
+                    raise KubernetesStartContainerError(msg)
+                if len(v) > 50:
+                    raise ValueError(f"Node selector key/val too long. Limit 50. Key/Val: {ns_key}/{ns_val}")
+            node_selector = {ns_key: ns_val}
+        except Exception as e:
+            msg = f"Node selector keyval not in correct format. e: {e}"
+            logger.error(msg)
+            raise KubernetesStartContainerError(msg)
+
+    ### Tolerations
+    tolerations = []
+    for toleration in deducted_queue.get('tolerations', []):
+        tolerations.append(client.V1Toleration(**toleration))
+
+    ### Resources - CPU/MEM
+    # Defining kubernetes requests/limits
+    # Memory - k8 uses no suffix (for bytes), Ki, Mi, Gi, Ti, Pi, or Ei (Does not accept kb, mb, or gb at all)
+    # CPUs - In millicpus (m)
+    # Limits
+    resource_limits = {}
+    if mem_limit:
+        resource_limits["memory"] = f"{mem_limit}Mi"
+    if cpu_limit:
+        resource_limits["cpu"] = f"{cpu_limit}m"
+    # Requests
+    resource_requests = {}
+    if mem_request:
+        resource_requests["memory"] = f"{mem_request}Mi"
+    if cpu_request:
+        resource_requests["cpu"] = f"{cpu_request}m"
+
+    ### Resources - GPU part
+    # if gpus are requested, look for queue gpu array
+    # gpus_requested int must be satisfied by gpus available
+    # for now all gpus should be the same, so we're just looking at total for queue
+    # later, users might be able to specify specific gpus, at which point we'll need to check
+    # if the requested gpus are available in the queue or if the queue has enough
+    # Readme has good info - https://github.com/NVIDIA/k8s-device-plugin
+    ### Time-sliced gpus - 1 gpu can be sliced into multiple time-sliced gpus
+    # Selecting 2 could mean 2 of 10 slices of a gpu. Equivalent to 1 of 10 slices in terms of compute/implementation.
+    # Meaning max request for a time-sliced gpu is 1.
+    ### Full gpus - Requested gpus are full gpus. 2 means 2 full gpus.    
+    # Probably need some more work for true multi-GPU specifications, but for now this is a good start.
+    logger.debug(f"Requested gpus: {gpus_requested}")
+    if gpus_requested:
+        logger.debug(f"GPUs have been requested, amount: {gpus_requested}")
+        gpu_resources = deducted_queue.get('gpu_resources', [])
+        logger.debug(f"GPU resource config: {gpu_resources}")
+
+        total_gpus = 0
+        for gpu_resource in gpu_resources:
+            # There's currently only one, this'll overwrite if there's more.
+            activation_resource = gpu_resource.get('activation_resource', None)
+            logger.debug(f"Found activation resource: {activation_resource}")
+            if not activation_resource:
+                msg = f"Queue: {requested_queue_name} does not have an activation resource."
+                logger.error(msg)
+                raise KubernetesStartContainerError(msg)
+            # time-sliced gpus should only count as 1 even if multiple slices are available
+            # if "gpu.shared" in activation_resource:
+            #     total_gpus += 1
+            # else:
+            total_gpus += gpu_resource.get('max_gpu_request', 0)
+
+        logger.debug(f"Total gpus available: {total_gpus}")
+
+        if gpus_requested > total_gpus:
+            msg = f"Requested gpus: {gpus_requested} is greater than total gpus available: {total_gpus}."
+            logger.error(msg)
+            raise KubernetesStartContainerError(msg)
+
+        resource_limits[activation_resource] = gpus_requested
+        resource_requests[activation_resource] = gpus_requested
+
+    # Define resource requirements if resource limits specified
+    resources = client.V1ResourceRequirements(limits = resource_limits, requests = resource_requests)
+    logger.debug(f"queue: {deducted_queue.get('queue_name')}\n"
+                 f"node_selector: {node_selector}\n"
+                 f"tolerations: {tolerations}\n"
+                 f"resource_requests: {resource_requests}\n"
+                 f"resource_limits: {resource_limits}")
+
+    return node_selector, tolerations, resources
+
 def create_pod(name: str,
                image: str,
                revision: int,
@@ -305,7 +445,8 @@ def create_pod(name: str,
                cpu_request: str | None = None,
                mem_limit: str | None = None,
                cpu_limit: str | None = None,
-               gpus: str | None = None,
+               queue: str | None = None,
+               gpus: int = 0,
                user: str | None = None,
                image_pull_policy: Literal["Always", "IfNotPresent", "Never"] = "Always"):
     """
@@ -372,39 +513,15 @@ def create_pod(name: str,
     logger.debug(f"Volumes: {volumes}; pod_id: {name}")
     logger.debug(f"Volume_mounts: {volume_mounts}; pod_id: {name}")
 
-    ### Resource Limits + Requests - memory and cpu
-    # Memory - k8 uses no suffix (for bytes), Ki, Mi, Gi, Ti, Pi, or Ei (Does not accept kb, mb, or gb at all)
-    # CPUs - In millicpus (m)
-    # Limits
-    resource_limits = {}
-    if mem_limit:
-        resource_limits["memory"] = f"{mem_limit}Mi"
-    if cpu_limit:
-        resource_limits["cpu"] = f"{cpu_limit}m"
-    # Requests
-    resource_requests = {}
-    if mem_request:
-        resource_requests["memory"] = f"{mem_request}Mi"
-    if cpu_request:
-        resource_requests["cpu"] = f"{cpu_request}m"
-    # GPUs
-    if gpus:
-        resource_limits["nvidia.com/gpu"] = gpus
-    # Define resource requirements if resource limits specified
-    resources = client.V1ResourceRequirements(limits = resource_limits, requests = resource_requests)
+    ### Resources - CPU/MEM/GPU settings based off of queue
+    node_selector, tolerations, resources = deduct_queue_settings(queue, gpus, mem_request, cpu_request, mem_limit, cpu_limit)
 
     ## If GPU is requested.
     if gpus:
-        node_selector = {"gpu": "v100"}
-        toleration = client.V1Toleration(
-            key="gpunode",
-            operator="Exists",
-            effect="NoSchedule"
-        )
-        tolerations = [toleration]
+        #dns_config = client.V1PodDNSConfig(nameservers=['8.8.8.8']) # I don't believe this dns config is needed. But maybe?
+        dns_config = None
     else:
-        node_selector = None
-        tolerations = []
+        dns_config = None
 
     ### Security Context
     security_context = None
@@ -454,6 +571,7 @@ def create_pod(name: str,
         pod_spec = client.V1PodSpec(
             init_containers=init_containers,
             containers=[container],
+            dns_config = dns_config,
             volumes=volumes,
             restart_policy="Never",
             security_context=security_context,
@@ -556,7 +674,8 @@ def create_pvc(name):
     except Exception as e:
         msg = f"Got exception trying to start pvc with name: {name}. {e}"
         logger.info(msg)
-        raise KubernetesError(msg)
+        k8_pvc = True
+        #raise KubernetesError(msg)
     logger.info(f"Pod pvc started successfully.")
     return k8_pvc
 
@@ -569,7 +688,7 @@ def update_traefik_configmap(tcp_proxy_info: Dict[str, Dict[str, str]],
     Should be site specific.
 
     Args:
-        proxy_info ({"pod_id1": {"routing_port": int, "url": str}, ...}): Dict of dict that 
+        proxy_info ({"pod_id1": {"routing_port": int, "url": str, "k8_service": str}, ...}): Dict of dict that
             specifies routing port + url needed to create pod service.
     """
     logger.info("Top of update_traefik_configmap().")

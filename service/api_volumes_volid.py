@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from models_pods import Pod, NewPod, UpdatePod, PodResponse, Password, DeletePodResponse
+from models_pods import Pod, NewPod, UpdatePod, PodResponse, Password
 from models_volumes import Volume, VolumeResponse, DeleteVolumeResponse, UpdateVolume
 from channels import CommandChannel
 from tapisservice.tapisfastapi.utils import g, ok, error

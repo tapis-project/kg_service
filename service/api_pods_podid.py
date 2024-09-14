@@ -1,7 +1,9 @@
+import re
 from fastapi import APIRouter
-from models_pods import Pod, UpdatePod, PodResponse, Password, DeletePodResponse
+from models_pods import Pod, UpdatePod, PodResponse, Password, PodDeleteResponse, PodsFinalResponse, PodBaseFull
 from channels import CommandChannel
 from tapisservice.tapisfastapi.utils import g, ok, error
+from kubernetes_templates import combine_pod_and_template_recursively
 
 from tapisservice.logs import get_logger
 logger = get_logger(__name__)
@@ -58,7 +60,7 @@ async def update_pod(pod_id, update_pod: UpdatePod):
     tags=["Pods"],
     summary="delete_pod",
     operation_id="delete_pod",
-    response_model=DeletePodResponse)
+    response_model=PodDeleteResponse)
 async def delete_pod(pod_id):
     """
     Delete a pod.
@@ -96,3 +98,42 @@ async def get_pod(pod_id):
     pod = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
 
     return ok(result=pod.display(), msg="Pod retrieved successfully.")
+
+
+@router.get(
+    "/pods/{pod_id}/derived",
+    tags=["Pods"],
+    summary="get_derived_pod",
+    operation_id="get_derived_pod",
+    response_model=PodResponse)
+async def get_derived_pod(pod_id):
+    """
+    Derive a pod's final definition if templates are used.
+
+    Returns final pod definition to be used for pod creation.
+    """
+    logger.info(f"GET /pods/{pod_id}/derived - Top of get_derived_pod.")
+
+    input_pod = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
+    pod = PodBaseFull(**input_pod.dict().copy()) # Create a copy of pod data we'll merge template data into
+    if pod.template:
+        # Derive the final pod object by combining the pod and templates
+        final_pod = combine_pod_and_template_recursively(pod, pod.template, tenant=g.request_tenant_id, site=g.site_id)
+    else:
+        final_pod = pod
+
+    ###
+    ### SECRETS
+    ###
+    # Need to replace all "<<TAPIS_vars>>" with vals from secrets for example needs to work for "dsadsadsa <<TAPIS_mysecret>> dsadsadsa".
+    # currently just the passwords db table. Eventually that'll become pods_env which itself could reference sk if that's needed.
+    pods_env = Password.db_get_with_pk(pod.pod_id, pod.tenant_id, pod.site_id)
+    pods_env = pods_env.dict()
+    for key, val in final_pod.environment_variables.items():
+        if isinstance(val, str):
+            # regex to create list of [<<TAPIS_*>> strings, str of inner variable without >><<]
+            matches = re.findall(r'<<TAPIS_(.*?)>>', val)
+            for match in matches:
+                final_pod.environment_variables[key] = val.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
+
+    return ok(result=final_pod.display(), msg="Final derived pod retrieved successfully.")

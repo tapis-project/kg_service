@@ -9,7 +9,7 @@ http:
     path-strip-v3:
       stripPrefix:
         prefixes:
-         - "/v3"
+         - "/v3"    
     dev-host-headers:
       headers:
         customRequestHeaders:
@@ -23,6 +23,23 @@ http:
           - "501-599"
         service: pods-service
         query: "/error-handler/{status}"
+
+    {% for pname,  pdata in http_proxy_info.items() -%}
+    {% if pdata.tapis_auth -%}
+    tapis-auth-{{ pname }}:
+      forwardAuth:
+        address: {{ pdata.auth_url }}
+        {% if pdata.tapis_auth_response_headers -%}
+        authResponseHeaders:
+          {% for header in pdata.tapis_auth_response_headers -%}
+          - "{{ header }}"
+          {% endfor %}
+        {% endif -%}
+#        addAuthCookiesToResponse:
+#          - "X-TapisUsername"
+#          - "X-Tapis-Token"
+    {% endif -%}
+    {% endfor %}
 
   routers:
     dashboard:
@@ -40,6 +57,10 @@ http:
     {% for pname, pdata in http_proxy_info.items() -%}
     {{ pname }}:
       rule: "Host(`{{ pdata.url }}`)"
+      {% if pdata.tapis_auth -%}
+      middlewares:
+       - "tapis-auth-{{ pname }}"
+      {% endif -%}
       service: "{{ pname }}"
       tls:
         certResolver: tlsletsencrypt

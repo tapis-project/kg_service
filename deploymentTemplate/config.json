@@ -29,10 +29,10 @@
         "jstubbs/abaco_test",
         "tuyamei/smartfoodshed-server",
         "ssquid/kapp",
+        "tiangolo/uvicorn-gunicorn-fastapi",
         "av11/sd-webui-auto-bulk",
-        "jolibrain/deepdetect_cpu",
-        "notchristiangarcia/vaapi-v1-f",
-        "notchristiangarcia/vaapi-v1-b"
+        "postgres",
+        "notchristiangarcia/neo4j"
     ],
     "nfs_pvc_name": "pods-nfs-vol",
     "nfs_base_path": "/podsnfs",
@@ -41,7 +41,8 @@
     "spawner_host_queues": [
         "tacc"
     ],
-#DEV    "show_traceback": false,
+    "show_traceback": false,
+    "postgres_engine_echo_for_debug": false,
     "site_id": "tacc",
     "global_site_object": {
         "site_rabbitmq_pass": "defaultpass"
@@ -51,5 +52,12 @@
         "log_ex": 43200
     },
     "tacc_tenant_object": {
-    }
+    },
+    "compute_queues": [
+        {
+            "queue_name": "default",
+            "default": true,
+            "description": "running with no Kubernetes extras"
+        }
+    ]
 }

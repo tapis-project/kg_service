@@ -18,6 +18,8 @@ from errors import ResourceError, PermissionsException
 from models_pods import Pod
 from models_volumes import Volume
 from models_snapshots import Snapshot
+from models_templates import Template
+from models_images import Image
 from utils import check_permissions
 
 TOKEN_RE = re.compile('Bearer (.+)')
@@ -54,83 +56,35 @@ def get_user_site_id():
     g.site_id = user_site_obj.site_id
 
 
-def check_pod_id(request):
-    """Get pod_id from the request path."""
-    # pods_id identifier, index 2.
-    #     /pods/<pod_id>
-    #     path_split: ['', 'pods', 'pod_id'] 
-    logger.debug(f"Top of check_pod_id.")
+def check_object_id(request, object_type, idx):
+    """Get the object_id from the request path."""
+    # object_id identifier, index idx.
+    #     /pods/<object_type>/<object_id>
+    #     path_split: ['', 'pods', '<object_type>', 'object_id'] 
+    logger.debug(f"Top of check_object_id. object_type: {object_type}; idx: {idx}")
 
-    idx = 2
     path_split = request.url.path.split("/")
 
-    if len(path_split) < 3:
-        logger.error(f"Unrecognized request -- could not find the pod_id. path_split: {path_split}")
+    if len(path_split) <= idx:
+        logger.error(f"Unrecognized request -- could not find {object_type}_id. path_split: {path_split}")
         raise PermissionsException("Not authorized.")
     logger.debug(f"path_split: {path_split}")
     try:
-        pod_id = path_split[idx]
+        object_id = path_split[idx]
     except IndexError:
-        raise ResourceError("Unable to parse pods_id: is it missing from the URL?", 404)
-    logger.debug(f"pod_id: {pod_id}; tenant: {g.request_tenant_id}")
-    pod = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
-    if not pod:
-        msg = f"Pod with identifier '{pod_id}' not found"
+        raise ResourceError(f"Unable to parse {object_type}_id: is it missing from the URL?", 404)
+    if object_type in ['image']:
+        logger.debug(f"Attempting to grab {object_type}_id: {object_id}; tenant: siteadmintable")
+        obj = globals()[object_type.capitalize()].db_get_with_pk(object_id, tenant="siteadmintable", site=g.site_id)
+    else:
+        logger.debug(f"Attempting to grab {object_type}_id: {object_id}; tenant: {g.request_tenant_id}")
+        obj = globals()[object_type.capitalize()].db_get_with_pk(object_id, tenant=g.request_tenant_id, site=g.site_id)
+    if not obj:
+        msg = f"{object_type.capitalize()} with identifier {object_type}_id: '{object_id}' not found"
         logger.info(msg)
         raise ResourceError(msg, 404)
-    return pod
+    return obj
 
-def check_volume_id(request):
-    """Get the volume_id from the request path."""
-    # volumes_id identifier, index 2.
-    #     /pods/volumes/<volume_id>
-    #     path_split: ['', 'pods', 'volumes', 'volume_id'] 
-    logger.debug(f"Top of check_volume_id.")
-
-    idx = 3
-    path_split = request.url.path.split("/")
-
-    if len(path_split) < 4:
-        logger.error(f"Unrecognized request -- could not find the volume_id. path_split: {path_split}")
-        raise PermissionsException("Not authorized.")
-    logger.debug(f"path_split: {path_split}")
-    try:
-        volume_id = path_split[idx]
-    except IndexError:
-        raise ResourceError("Unable to parse volume_id: is it missing from the URL?", 404)
-    logger.debug(f"volume_id: {volume_id}; tenant: {g.request_tenant_id}")
-    volume = Volume.db_get_with_pk(volume_id, tenant=g.request_tenant_id, site=g.site_id)
-    if not volume:
-        msg = f"Volume with identifier '{volume_id}' not found"
-        logger.info(msg)
-        raise ResourceError(msg, 404)
-    return volume
-
-def check_snapshot_id(request):
-    """Get the snapshot_id from the request path."""
-    # snapshot_id identifier, index 2.
-    #     /pods/snapshots/<snapshot_id>
-    #     path_split: ['', 'pods', 'snapshots', 'snapshot_id'] 
-    logger.debug(f"Top of check_snapshot_id.")
-
-    idx = 3
-    path_split = request.url.path.split("/")
-
-    if len(path_split) < 4:
-        logger.error(f"Unrecognized request -- could not find the snapshot_id. path_split: {path_split}")
-        raise PermissionsException("Not authorized.")
-    logger.debug(f"path_split: {path_split}")
-    try:
-        snapshot_id = path_split[idx]
-    except IndexError:
-        raise ResourceError("Unable to parse snapshot_id: is it missing from the URL?", 404)
-    logger.debug(f"snapshot_id: {snapshot_id}; tenant: {g.request_tenant_id}")
-    snapshot = Snapshot.db_get_with_pk(snapshot_id, tenant=g.request_tenant_id, site=g.site_id)
-    if not snapshot:
-        msg = f"Snapshot with identifier '{snapshot_id}' not found"
-        logger.info(msg)
-        raise ResourceError(msg, 404)
-    return snapshot
 
 def authorization(request):
     """
@@ -138,6 +92,8 @@ def authorization(request):
     logic. This function is called by flaskbase after all authentication processing and initial
     authorization logic has run.
     """
+    logger.debug(f"top of authorization: request.url.path: {request.url.path}")
+
     # first check whether the request is even valid -
     if hasattr(request, 'url'):
         logger.debug(f"request.url: {request.url}")
@@ -146,7 +102,6 @@ def authorization(request):
             #     logger.debug(f"Found multiple slashes, simplifying (Because we use / parsing later). original path: {request.url.path}")
             #     request.url.path = request.url.path.replace("///", "/").replace("//", "/")
             logger.debug(f"request.url.path: {request.url.path}")
-
         else:
             logger.info("request.url has no path.")
             raise ResourceError(
@@ -156,277 +111,152 @@ def authorization(request):
         raise ResourceError(
             "Invalid request: the API endpoint does not exist or the provided HTTP method is not allowed.", 405)
 
-    # get the pod pod_id from a possible identifier once and for all -
-    # these routes do not have an pod pod_id in them:
-    # if request.url.path == '/docs':
-    #     return True
-    pod = None
-    volume = None
-    snapshot = None
-    if (request.url.path == '/redoc' or
-        request.url.path == '/docs' or
-        request.url.path == '/openapi.json' or
-        request.url.path == '/traefik-config' or
-        request.url.path.startswith('/error-handler/')):
-        logger.debug(f"Spec, Docs, Traefik conf doesn't need auth. Skipping. url.path: {request.url.path}")
-        return
-    elif (request.url.path == '/pods' or 
-          request.url.path == '/pods/volumes' or
-          request.url.path == '/pods/snapshots' or
-          request.url.path == '/docs'):
-        logger.debug(f"Don't need to run check_pod_id(), no pod_id in url.path: {request.url.path}")
-        pass
-    elif request.url.path.startswith("/pods/volumes"):
-        logger.debug(f"Found route which should have volume_id: {request.url.path}")
-        volume = check_volume_id(request)
-    elif request.url.path.startswith("/pods/snapshots"):
-        logger.debug(f"Found route which should have snapshot_id: {request.url.path}")
-        snapshot = check_snapshot_id(request)
-    else:
-        # every other route should have an pod identifier. Check if it's real.
-        logger.debug(f"fetching pod_id; rule: {request.url.path}")
-        pod = check_pod_id(request)
-
-    ### Fill in g object
-    # Generally request.base_url returns `https://tapis.io`
-    g.api_server = request.base_url.replace('http://', 'https://')
-    g.admin = False
-    # Set g.site_id and g.roles
-    get_user_site_id()
-    get_user_sk_roles()
-    
-    ### Set admin
-    # if codes.ADMIN_ROLE in g.roles:
-    #     g.admin = True
-    #     logger.info("Allowing request because of ADMIN_ROLE.")
-    #     return True
-
-    if request.method == 'OPTIONS':
-        # allow all users to make OPTIONS requests
-        logger.info("Allowing request because of OPTIONS method.")
-        return True
-
-    logger.debug(f"request.url.path: {request.url.path}")
-
-    #### Do checks for pods read/user/admin roles. Add in "required_roles" attr when neccessary in api.
-    # there are special rules on the pods root collection:
-    if '/pods' == request.url.path or '/pods/volumes' == request.url.path or '/pods/snapshots' == request.url.path:
-        logger.debug("Checking permissions on root collection.")
-        # Only ADMIN can set privileged and some attrs. Check for that here.
-        # if request.method == 'POST':
-        #     check_privileged()
-
-        # if we are here, it is either a GET or a new object, so the request is allowed:
-        logger.debug("new object or GET on root connection. allowing request.")
-        return True
 
     # We check permissions, if user does not have permission, these functions will error and provide context.
-    if pod:
-        check_pod_permission(pod, request)
-    elif volume:
-        check_volume_permission(volume, request)
-    if snapshot:
-        check_snapshot_permission(snapshot, request)
+    check_route_permissions(request)
 
-def check_pod_permission(pod, request):
+def check_route_permissions(request):
     has_pem = False
+    matched_route = None
+    routes = [
+        # NOT-API endpoints which don't use url/user/tenant info
+        ["/redoc", "GET", "NOT-API"],
+        ["/docs", "GET", "NOT-API"],
+        ["/openapi.json", "GET", "NOT-API"],
+        ["/traefik-config", "GET", "NOT-API"],
+        ["/error-handler/{status}", "GET", "NOT-API"],
+        # OAuth2
+        ["/pods/auth", "GET", "NOT-API"],#codes.NONE],
+        ["/pods/auth/callback", "GET", "NOT-API"],#codes.NONE],
+        # IMAGES
+        ["/pods/images/{image_id:path}", "GET", codes.NONE],
+        ["/pods/images/{image_id}", "DELETE", codes.NONE],#"ONLY-ADMIN"], # this should require admin, but can't use codes.ADMIN as permissions not defined on # just need to edit tests for this to work
+        ["/pods/images", "GET", codes.NONE],
+        ["/pods/images", "POST", codes.NONE],
+        # TEMPLATES
+        ["/pods/templates/tags", "GET", codes.NONE],
+        ["/pods/templates/{template_id}/tags/{tag_id}", "GET", codes.READ],
+        ["/pods/templates/{template_id}/tags", "GET", codes.READ],
+        ["/pods/templates/{template_id}/tags", "POST", codes.USER],
+        ["/pods/templates/{template_id}/permissions", "GET", codes.USER],
+        ["/pods/templates/{template_id}/permissions/{user}", "DELETE", codes.ADMIN],
+        ["/pods/templates/{template_id}/permissions", "POST", codes.ADMIN],
+        ["/pods/templates/{template_id}/list", "GET", codes.READ],
+        ["/pods/templates/{template_id}", "GET", codes.READ],
+        ["/pods/templates/{template_id}", "PUT", codes.USER],
+        ["/pods/templates/{template_id}", "DELETE", codes.ADMIN],
+        ["/pods/templates", "GET", codes.NONE],
+        ["/pods/templates", "POST", codes.NONE],
+        # VOLUMES
+        ["/pods/volumes/{volume_id}/permissions", "GET", codes.USER],
+        ["/pods/volumes/{volume_id}/permissions/{user}", "DELETE", codes.ADMIN],
+        ["/pods/volumes/{volume_id}/permissions", "POST", codes.ADMIN],
+        ["/pods/volumes/{volume_id}/list", "GET", codes.READ],
+        ["/pods/volumes/{volume_id}/upload/{filename}", "POST", codes.USER],
+        ["/pods/volumes/{volume_id}/contents/{path:path}", "GET", codes.USER],
+        ["/pods/volumes/{volume_id}", "GET", codes.READ],
+        ["/pods/volumes/{volume_id}", "PUT", codes.USER],
+        ["/pods/volumes/{volume_id}", "DELETE", codes.ADMIN],
+        ["/pods/volumes", "GET", codes.NONE],
+        ["/pods/volumes", "POST", codes.NONE],
+        # SNAPSHOTS
+        ["/pods/snapshots/{snapshot_id}/permissions", "GET", codes.USER],
+        ["/pods/snapshots/{snapshot_id}/permissions/{user}", "DELETE", codes.ADMIN],
+        ["/pods/snapshots/{snapshot_id}/permissions", "POST", codes.ADMIN],
+        ["/pods/snapshots/{snapshot_id}/list", "GET", codes.READ],
+        ["/pods/snapshots/{snapshot_id}/contents/{path:path}", "GET", codes.USER],
+        ["/pods/snapshots/{snapshot_id}", "GET", codes.READ],
+        ["/pods/snapshots/{snapshot_id}", "PUT", codes.USER],
+        ["/pods/snapshots/{snapshot_id}", "DELETE", codes.ADMIN],
+        ["/pods/snapshots", "GET", codes.NONE],
+        ["/pods/snapshots", "POST", codes.NONE],
+        # PODS
+        ["/pods/{pod_id}/permissions", "GET", codes.USER],
+        ["/pods/{pod_id}/permissions/{user}", "DELETE", codes.ADMIN],
+        ["/pods/{pod_id}/permissions", "POST", codes.ADMIN],
+        ["/pods/{pod_id}/logs", "GET", codes.READ],
+        ["/pods/{pod_id}/credentials", "GET", codes.USER],
+        ["/pods/{pod_id}/stop", "GET", codes.ADMIN],
+        ["/pods/{pod_id}/start", "GET", codes.ADMIN],
+        ["/pods/{pod_id}/restart", "GET", codes.ADMIN],
+        ["/pods/{pod_id}/derived", "GET", codes.READ],
+        ["/pods/{pod_id_net}/auth", "GET", "NOT-API"],
+        ["/pods/{pod_id_net}/auth/callback", "GET", "NOT-API"],
+        ["/pods/{pod_id}", "GET", codes.READ],
+        ["/pods/{pod_id}", "PUT", codes.USER],
+        ["/pods/{pod_id}", "DELETE", codes.ADMIN],
+        ["/pods", "GET", codes.NONE],
+        ["/pods", "POST", codes.NONE]
+    ]
 
-    path_split = request.url.path.split("/")
-    if len(path_split) < 3:
-        logger.error(f"Unrecognized request -- could not find the pod_id. path_split: {path_split}")
-        raise PermissionsException("Not authorized.")
+    # check that route matches one route with regex match. If it does, do pem check
+    # for snapshots/volumes/pods
+    for route in routes:
+        # check if method matches current request's method
+        if route[1] != request.method:
+            continue
+        
+        # Convert {variable_name:path} to a regex that matches any characters including slashes
+        regex_route_path = re.sub(r'\{[^}]*:path\}', '.*', route[0])
+        # Convert {variable_name} (not followed by :path) to regex alphanumeric matches
+        regex_route_path = re.sub(r'\{[^}]*\}', '[^/]+', regex_route_path)
+        # Ensure the regex matches the entire path from start (^) to end ($)
+        regex_route_path = f"^{regex_route_path}$"
+        if re.match(regex_route_path, request.url.path):
+            logger.debug(f"Matched API route: {route[1]} - {route[0]}")
+            matched_route = route
+            #raise PermissionsException(f"Matched API route: {route[1]} - {route[0]}.")
+            break
+    
+    if not matched_route:
+        raise PermissionsException(f"Could not match request to an API route.")
 
-    # Anything here should wind up as /pods/pod_id/func/. ["", "pods", "pod_id", "func", ""]
-    if not path_split[1] == "pods":
-        raise PermissionsException(f"URL should start with /pods, got {request.url.path}")
+    # check for level="NOT-API"
+    # NOT-API routes don't use url/user/tenant info
+    if matched_route[2] == "NOT-API":
+        has_pem = True
+        return
 
-    if len(path_split) > 3:
-        # Check for func = permissions
-        if path_split[3] == "permissions":
-            if request.method == 'GET':
+    # Sets g.site_id and g.roles.
+    # Required for all API routes
+    get_user_site_id()
+    get_user_sk_roles()
+    g.admin = True if "PODS_ADMIN" in g.roles else False
+    if g.admin:
+        has_pem = True
 
-# GET logs requires READ
-# GET pod require READ
+    if "{pod_id_net}" in matched_route[0]:
+        # pod_id_net can be `myid-networking3` for example. We need to get rid of the networking bit for permissions check
+        pod = check_object_id(request, 'pod', 2)
+        pod.pod_id = pod.pod_id.split("-")[0]
+        has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=matched_route[2] , roles=g.roles)
+    elif "{pod_id}" in matched_route[0]:
+        pod = check_object_id(request, 'pod', 2)
+        has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=matched_route[2] , roles=g.roles)
+    elif "{volume_id}" in matched_route[0]:
+        volume = check_object_id(request, 'volume', 3)
+        has_pem = check_permissions(user=g.username, object=volume, object_type="volume", level=matched_route[2] , roles=g.roles)
+    elif "{snapshot_id}" in matched_route[0]:
+        snapshot = check_object_id(request, 'snapshot', 3)
+        has_pem = check_permissions(user=g.username, object=snapshot, object_type="snapshot", level=matched_route[2] , roles=g.roles)
+    elif "{template_id}" in matched_route[0]:
+        template = check_object_id(request, 'template', 3)
+        has_pem = check_permissions(user=g.username, object=template, object_type="template", level=matched_route[2] , roles=g.roles)
+    elif "{image_id}" in matched_route[0]:
+        image = check_object_id(request, 'image', 3)
+        # images don't have permissions
+        #has_pem = check_permissions(user=g.username, object=image, object_type="image", level=matched_route[2] , roles=g.roles)
 
-# GET permissions requires USER
-# PUT pod require USER
-# GET creds requires USER
+    # check for codes.NONE
+    if matched_route[2] == codes.NONE:
+        logger.info("Allowing request because of NONE code. Specs/Docs/Traefik/OAuth/RootPaths don't need auth.")
+        has_pem = True
+        return
 
-# DELETE permissions requires ADMIN
-# POST permissions requires ADMIN
-# DELETE pod require ADMIN
-# GET restart requires ADMIN
-# GET stop requires ADMIN
-# GET start requires ADMIN
-
-                # GET permissions requires USER
-                has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.USER, roles=g.roles)
-            elif request.method == 'DELETE':
-                # DELETE permissions requires ADMIN
-                has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.ADMIN, roles=g.roles)
-            elif request.method == 'POST':
-                # POST permissions requires ADMIN
-                has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.ADMIN, roles=g.roles)
-        # Check for func = logs
-        if path_split[3] == "logs":
-            if request.method == 'GET':
-                # GET logs requires READ
-                has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.READ, roles=g.roles)
-        # Check for func = credentials
-        if path_split[3] == "credentials":
-            if request.method == 'GET':
-                # GET creds requires USER
-                has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.USER, roles=g.roles)
-        # Check for func = stop
-        if path_split[3] == "stop":
-            if request.method == 'GET':
-                # GET stop requires ADMIN
-                has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.ADMIN, roles=g.roles)
-        # Check for func = start
-        if path_split[3] == "start":
-            if request.method == 'GET':
-                # GET start requires ADMIN
-                has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.ADMIN, roles=g.roles)
-        # Check for func = restart
-        if path_split[3] == "restart":
-            if request.method == 'GET':
-                # GET restart requires ADMIN
-                has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.ADMIN, roles=g.roles)
-    else:
-        # Now just /pods/{pod_id}
-        if request.method == 'GET':
-            # GET pod require READ
-            has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.READ, roles=g.roles)
-        elif request.method == 'PUT':
-            # PUT pod require USER
-            has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.USER, roles=g.roles)
-        elif request.method == 'DELETE':
-            # DELETE pod require ADMIN
-            has_pem = check_permissions(user=g.username, object=pod, object_type="pod", level=codes.ADMIN, roles=g.roles)
-        # else:
-        #     logger.debug(f"URL rule in request: {request.url_rule.rule}")
-        #     # first, only admins can create/update actors to be privileged, so check that:
-        #     if request.method == 'POST' or request.method == 'PUT':
-        #         check_privileged()
-
+    # Last minute check for stragglers
     if not has_pem:
         logger.info("NOT allowing request.")
-        raise PermissionsException(f"Not authorized -- you do not have access to this pod endpoint.")
-
-
-def check_volume_permission(volume, request):
-    has_pem = False
-
-    path_split = request.url.path.split("/")
-    if len(path_split) < 4:
-        logger.error(f"Unrecognized request -- could not find the volume_id. path_split: {path_split}")
-        raise PermissionsException("Not authorized.")
-
-    # Anything here should wind up as /pods/volumes/volume_id/func/. ["", "pods", "volumes", "volume_id", "func", ""]
-    if not path_split[1] == "pods":
-        raise PermissionsException(f"URL should start with /pods, got {request.url.path}")
-
-    if not path_split[2] == "volumes":
-        raise PermissionsException(f"URL should start with /pods/volumes, got {request.url.path}")
-
-    if len(path_split) > 4:
-        # Check for func = permissions
-        if path_split[4] == "permissions":
-            if request.method == 'GET':
-                # GET permissions requires USER
-                has_pem = check_permissions(user=g.username, object=volume, object_type="volume", level=codes.USER, roles=g.roles)
-            elif request.method == 'DELETE':
-                # DELETE permissions requires ADMIN
-                has_pem = check_permissions(user=g.username, object=volume, object_type="volume", level=codes.ADMIN, roles=g.roles)
-            elif request.method == 'POST':
-                # POST permissions requires ADMIN
-                has_pem = check_permissions(user=g.username, object=volume, object_type="volume", level=codes.ADMIN, roles=g.roles)
-        # Check for func = list
-        if path_split[4] == "list":
-            if request.method == 'GET':
-                # GET list requires READ
-                has_pem = check_permissions(user=g.username, object=volume, object_type="volume", level=codes.READ, roles=g.roles)
-        # Check for func = upload
-        if path_split[4] == "upload":
-            if request.method == 'POST':
-                # POST upload requires USER
-                has_pem = check_permissions(user=g.username, object=volume, object_type="volume", level=codes.USER, roles=g.roles)
-
-    else:
-        # Now just /pods/volumes/{volume_id}
-        if request.method == 'GET':
-            # GET volume requires READ
-            has_pem = check_permissions(user=g.username, object=volume, object_type="volume", level=codes.READ, roles=g.roles)
-        elif request.method == 'PUT':
-            # PUT volume requires USER
-            has_pem = check_permissions(user=g.username, object=volume, object_type="volume", level=codes.USER, roles=g.roles)
-        elif request.method == 'DELETE':
-            # DELETE volume requires ADMIN
-            has_pem = check_permissions(user=g.username, object=volume, object_type="volume", level=codes.ADMIN, roles=g.roles)
-        # else:
-        #     logger.debug(f"URL rule in request: {request.url_rule.rule}")
-        #     # first, only admins can create/update actors to be privileged, so check that:
-        #     if request.method == 'POST' or request.method == 'PUT':
-        #         check_privileged()
-
-    if not has_pem:
-        logger.info("NOT allowing request.")
-        raise PermissionsException(f"Not authorized -- you do not have access to this volume endpoint.")
-
-
-def check_snapshot_permission(snapshot, request):
-    has_pem = False
-
-    path_split = request.url.path.split("/")
-    if len(path_split) < 4:
-        logger.error(f"Unrecognized request -- could not find the snapshot_id. path_split: {path_split}")
-        raise PermissionsException("Not authorized.")
-
-    # Anything here should wind up as /pods/snapshots/snapshot_id/func/. ["", "pods", "snapshots", "snapshot_id", "func", ""]
-    if not path_split[1] == "pods":
-        raise PermissionsException(f"URL should start with /pods, got {request.url.path}")
-
-    if not path_split[2] == "snapshots":
-        raise PermissionsException(f"URL should start with /pods/snapshots, got {request.url.path}")
-
-    if len(path_split) > 4:
-        # Check for func = permissions
-        if path_split[4] == "permissions":
-            if request.method == 'GET':
-                # GET permissions requires USER
-                has_pem = check_permissions(user=g.username, object=snapshot, object_type="snapshot", level=codes.USER, roles=g.roles)
-            elif request.method == 'DELETE':
-                # DELETE permissions requires ADMIN
-                has_pem = check_permissions(user=g.username, object=snapshot, object_type="snapshot", level=codes.ADMIN, roles=g.roles)
-            elif request.method == 'POST':
-                # POST permissions requires ADMIN
-                has_pem = check_permissions(user=g.username, object=snapshot, object_type="snapshot", level=codes.ADMIN, roles=g.roles)
-        # Check for func = list
-        if path_split[4] == "list":
-            if request.method == 'GET':
-                # GET list requires READ
-                has_pem = check_permissions(user=g.username, object=snapshot, object_type="snapshot", level=codes.READ, roles=g.roles)
-        # Check for func = upload
-        if path_split[4] == "upload":
-            if request.method == 'POST':
-                # POST upload requires USER
-                has_pem = check_permissions(user=g.username, object=snapshot, object_type="snapshot", level=codes.USER, roles=g.roles)
-
-    else:
-        # Now just /pods/snapshots/{snapshot_id}
-        if request.method == 'GET':
-            # GET snapshot requires READ
-            has_pem = check_permissions(user=g.username, object=snapshot, object_type="snapshot", level=codes.READ, roles=g.roles)
-        elif request.method == 'PUT':
-            # PUT snapshot requires USER
-            has_pem = check_permissions(user=g.username, object=snapshot, object_type="snapshot", level=codes.USER, roles=g.roles)
-        elif request.method == 'DELETE':
-            # DELETE snapshot requires ADMIN
-            has_pem = check_permissions(user=g.username, object=snapshot, object_type="snapshot", level=codes.ADMIN, roles=g.roles)
-
-    if not has_pem:
-        logger.info("NOT allowing request.")
-        raise PermissionsException(f"Not authorized -- you do not have access to this snapshot endpoint.")
+        raise PermissionsException(f"Not authorized -- you do not have access to this endpoint. {matched_route[1]}-{matched_route[0]}")
 
 
 def authentication(request):

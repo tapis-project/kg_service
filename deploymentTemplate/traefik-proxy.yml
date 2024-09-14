@@ -17,8 +17,8 @@ spec:
         image: notchristiangarcia/traefik-testing:latest
         resources:
           requests:
-            cpu: ".5"
-            memory: "1G"
+            cpu: ".4"
+            memory: ".4G"
           limits:
             cpu: "3"
             memory: "3G"

@@ -9,7 +9,6 @@ from typing import List, Dict, Literal, Any, Set, Optional
 from wsgiref import validate
 from pydantic import BaseModel, Field, validator, root_validator, create_model
 from codes import PermissionLevel, USER
-import codes
 
 from stores import pg_store
 from tapisservice.tapisfastapi.utils import g

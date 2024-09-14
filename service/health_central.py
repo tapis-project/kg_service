@@ -21,6 +21,7 @@ from kubernetes_utils import get_current_k8_services, get_current_k8_pods, rm_co
 from codes import AVAILABLE, DELETING, STOPPED, ERROR, REQUESTED, COMPLETE, RESTART, ON, OFF
 from stores import pg_store, SITE_TENANT_DICT
 from models_pods import Pod
+from models_templates_tags import combine_pod_and_template_recursively
 from models_volumes import Volume
 from models_snapshots import Snapshot
 from volume_utils import files_listfiles, files_delete, files_mkdir
@@ -200,7 +201,8 @@ def set_traefik_proxy():
     tcp_proxy_info = {}
     http_proxy_info = {}
     postgres_proxy_info = {}
-    for pod in all_pods:
+    for input_pod in all_pods:
+        pod = combine_pod_and_template_recursively(input_pod, input_pod.template, tenant=input_pod.tenant_id, site=input_pod.site_id)
         # Each pod can have up to 3 networking objects with custom filled port/protocol/name
         for net_name, net_info in pod.networking.items():
             if not isinstance(net_info, dict):
@@ -216,11 +218,27 @@ def set_traefik_proxy():
             template_info = {"routing_port": net_info['port'],
                              "url": net_info['url'],
                              "k8_service": pod.k8_name}
+
+            # The goal is: https://tacc.develop.tapis.io/v3/pods/{{pod_id}}/auth
+            pod_id_section, tapis_domain = net_info['url'].split('.pods.') ## Should return `mypod` & `tacc.tapis.io` with proper tenant and schmu
+            if '-' in pod_id_section:
+                pod_id, network_section = pod_id_section.split('-') # e.g. `mypod-networking2` if there's several networking objects
+            else:
+                pod_id = pod_id_section
+            logger.critical(f"pod_id: {pod_id}, tapis_domain: {tapis_domain}, net_info: {net_info}")
+            forward_auth_info = {
+                "tapis_auth": net_info.get('tapis_auth', True),
+                "auth_url": f"https://{tapis_domain}/v3/pods/{pod_id}/auth",
+                "tapis_auth_response_headers": net_info.get('tapis_auth_response_headers', []),
+            }
+
             match net_info['protocol']:
                 case "tcp":
                     tcp_proxy_info[traefik_service_name] = template_info
                 case "http":
                     http_proxy_info[traefik_service_name] = template_info
+                    if forward_auth_info['tapis_auth']:
+                        template_info.update(forward_auth_info)
                 case "postgres":
                     postgres_proxy_info[traefik_service_name] = template_info
                 case "local_only":

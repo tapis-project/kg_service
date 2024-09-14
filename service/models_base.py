@@ -27,7 +27,7 @@ class TapisModel(SQLModel):
         extra = "forbid"
 
     @staticmethod
-    def get_site_tenant_session(obj={}, tenant=None, site=None):
+    def get_site_tenant_session(obj={}, tenant: str = None, site: str = None):
         # functions with self can provide self, otherwise provide tenant and site.
         tenant_id = tenant or getattr(obj, 'tenant_id', None) or 'tacc'
         site_id = site or getattr(obj, 'site_id', None) or 'tacc'
@@ -36,11 +36,11 @@ class TapisModel(SQLModel):
         logger.debug(f"Using site: {site_id}; tenant: {tenant_id}; Session: {Session}.")
         return site_id, tenant_id, store
 
-    def db_create(self):
+    def db_create(self, tenant: str = None, site: str = None):
         """
         Creates a new row in the given table. Returns the primary key ID of the new row.
         """
-        site, tenant, store = self.get_site_tenant_session(obj=self)
+        site, tenant, store = self.get_site_tenant_session(obj=self, tenant=tenant, site=site)
         table_name = self.table_name()
         logger.info(f'Top of {table_name}.db_create() for site: {site}; tenant: {tenant}.')
 
@@ -50,11 +50,11 @@ class TapisModel(SQLModel):
         logger.info(f"Row successfully created in table {tenant}.{table_name}.")
         return self
 
-    def db_update(self, log = None):
+    def db_update(self, log = None, tenant: str = None, site: str = None):
         """
         Updates based on everything in this instance
         """
-        site, tenant, store = self.get_site_tenant_session(obj=self)
+        site, tenant, store = self.get_site_tenant_session(obj=self, tenant=tenant, site=site)
         table_name = self.table_name()
         logger.info(f'Top of {table_name}.db_update() for tenant.site: {tenant}.{site}')
 
@@ -72,11 +72,11 @@ class TapisModel(SQLModel):
         logger.info(f"Row successfully updated in table {tenant}.{table_name}.")
         return self
 
-    def db_delete(self):
+    def db_delete(self, tenant: str = None, site: str = None):
         """
         Deletes db_object
         """
-        site, tenant, store = self.get_site_tenant_session(obj=self)
+        site, tenant, store = self.get_site_tenant_session(obj=self, tenant=tenant, site=site)
         table_name = self.table_name()
         logger.info(f'Top of {table_name}.db_delete() for tenant.site: {tenant}.{site}')
 
@@ -104,7 +104,7 @@ class TapisModel(SQLModel):
         return cls(**db_dict)
 
     @classmethod
-    def db_get_where(cls, where_params: List[List], tenant, site):
+    def db_get_where(cls, where_params: List[List], sort_column: str = None, sort_dir: str = "desc", tenant: str = None, site: str = None):
         """
         Gets the row with given primary key from the specified table.
         where_params = [key, oper, val]
@@ -112,7 +112,7 @@ class TapisModel(SQLModel):
         """
         site, tenant, store = cls.get_site_tenant_session(tenant=tenant, site=site)
         table_name = cls.table_name()
-        logger.debug(f'Top of {table_name}.db_get_all() for tenant.site: {tenant}.{site}')
+        logger.debug(f'Top of {table_name}.db_get_where() for tenant.site: {tenant}.{site}')
 
         if not where_params:
             raise ValueError(f"where_dict must be specfied for db_get_where. Got empty")
@@ -144,6 +144,14 @@ class TapisModel(SQLModel):
                     stmt = stmt.where(eval(f"cls.{key} {oper_aliases[oper]} '{val}'"))
                 else:
                     stmt = stmt.where(eval(f"cls.{key} {oper_aliases[oper]} {val}"))
+        # Add sort order
+        if sort_column:
+            if sort_dir not in ['asc', 'desc']:
+                raise ValueError(f"sort_dir must be 'asc' or 'desc'. Got {sort_dir}")
+            if sort_dir == 'asc':
+                stmt = stmt.order_by(eval(f"cls.{sort_column}.asc()"))
+            elif sort_dir == 'desc':
+                stmt = stmt.order_by(eval(f"cls.{sort_column}.desc()"))
 
         # Run command
         results = store.run("execute", stmt, scalars=True, all=True)
@@ -151,7 +159,7 @@ class TapisModel(SQLModel):
         return results
 
     @classmethod
-    def db_get_with_pk(cls, pk_id, tenant, site):
+    def db_get_with_pk(cls, pk_id, tenant: str = None, site: str = None):
         """
         Gets the row with given primary key from the specified table.
         RETURNS CLASS
@@ -170,7 +178,7 @@ class TapisModel(SQLModel):
         return result
 
     @classmethod
-    def db_get_all(cls, tenant, site):
+    def db_get_all(cls, tenant: str = None, site: str = None):
         """
         Gets the row with given primary key from the specified table.
         """

@@ -2,7 +2,9 @@ from fastapi import APIRouter
 from models_pods import Pod
 from models_snapshots import Snapshot, SnapshotPermissionsResponse
 from models_misc import SetPermission, FilesListResponse
-from volume_utils import files_listfiles
+from volume_utils import files_listfiles, files_insert, files_download
+from fastapi import Query, Path, File
+from fastapi.responses import StreamingResponse
 from channels import CommandChannel
 from tapisservice.tapisfastapi.utils import g, ok
 from tapisservice.config import conf
@@ -37,6 +39,48 @@ async def list_snapshot_files(snapshot_id):
         pruned_list_of_files.append(file)
 
     return ok(result=pruned_list_of_files, msg = "Snapshot file listing retrieved successfully.")
+
+
+@router.get(
+    "/pods/snapshots/{snapshot_id}/contents/{path:path}",
+    tags=["Snapshots"],
+    summary="get_snapshot_contents",
+    operation_id="get_snapshot_contents",
+    responses={
+        200: {
+            "description": "A streamed response of the file contents.",
+            "content": {"application/octet-stream": {}, "application/zip": {}}
+        }
+    }
+)
+async def get_snapshot_contents(
+        snapshot_id: str = Path(..., description="Unique identifier for the snapshot."),
+        path: str = Path(..., description="Path relative to the snapshot's root directory. Cannot be empty or /."),
+        zip: bool = Query(default=False, description="If true, directory contents are compressed using ZIP format.")):
+    """
+    Get file or directory contents as a stream of data from a Tapis Snapshot.
+
+    Use the **zip** query parameter to request directories as a zip archive. This is not allowed if path would result in all files in the snapshot being included. Please download individual directories, files or objects.
+    """
+    logger.info(f"GET /pods/snapshots/{snapshot_id}/contents/{path} - Retrieving contents.")
+
+    snapshot = Snapshot.db_get_with_pk(snapshot_id, tenant=g.request_tenant_id, site=g.site_id)
+
+    # Validate path to prevent accessing all files on the host
+    if not path or path == "/":
+        raise KeyError("Requesting no path or / path is not allowed. Please download individual directories, files or objects.")
+
+    # Call files_download from snapshot_utils
+    file_content, filename = files_download(
+        path = f"/snapshots/{snapshot.snapshot_id}/{path}",
+        zip=zip)
+    
+    if zip:
+        # If zip is True, file_content is a generator for the ZIP file
+        return StreamingResponse(file_content, media_type="application/zip", headers={"Content-Disposition": f"attachment; filename={filename}"})
+    else:
+        # Assuming file_content is a generator for a regular file
+        return StreamingResponse(file_content, media_type="application/octet-stream", headers={"Content-Disposition": f"attachment; filename={filename}"})
 
 
 @router.get(

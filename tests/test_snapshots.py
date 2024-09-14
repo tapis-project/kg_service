@@ -48,7 +48,7 @@ def teardown(headers):
 
 
 ### Testing Snapshots
-def test_get_snapshots(headers):
+def test_list_snapshots(headers):
     rsp = client.get("/pods/snapshots", headers=headers)
     result = basic_response_checks(rsp)
     assert result is not None
@@ -70,7 +70,7 @@ def test_create_volume(headers):
     time.sleep(2)
 
 
-def test_check_get_volumes(headers):
+def test_check_list_volumes(headers):
     rsp = client.get("/pods/volumes", headers=headers)
     result = basic_response_checks(rsp)
     found_pod = False
@@ -127,7 +127,7 @@ def test_create_snapshot(headers):
     time.sleep(2)
 
 
-def test_check_get_snapshots(headers):
+def test_check_list_snapshots(headers):
     rsp = client.get("/pods/snapshots", headers=headers)
     result = basic_response_checks(rsp)
     found_pod = False
@@ -218,11 +218,16 @@ def test_update_snapshot_no_change(headers):
 
 ### Pod with Volume Mounted!
 def test_create_pod_with_snapshot(headers):
-    # Definition
     pod_def = {
         "pod_id": test_pod_1,
-        "pod_template": "template/neo4j",
-        "description": "Test neo4j pod with mounted snapshot",
+        "image": "tiangolo/uvicorn-gunicorn-fastapi",
+        "description": "Test fastapi server pod",
+        "networking": {
+            "default": {
+                "port": 5000,
+                "protocol": "http"
+            }
+        },
         "volume_mounts": {
             test_snapshot_1: {
                 "type": "tapissnapshot",

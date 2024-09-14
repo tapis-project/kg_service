@@ -42,17 +42,22 @@ def teardown(headers):
         rsp = client.delete(f'/pods/volumes/{vol_id}', headers=headers)
 
 ##### Testing Pods
-def test_get_pods(headers):
+def test_list_pods(headers):
     rsp = client.get("/pods", headers=headers)
     result = basic_response_checks(rsp)
     assert result is not None
 
 def test_create_pod(headers):
-    # Definition
     pod_def = {
         "pod_id": test_pod_1,
-        "pod_template": "template/neo4j",
-        "description": "Test Neo4j pod"
+        "image": "tiangolo/uvicorn-gunicorn-fastapi",
+        "description": "Test fastapi server pod",
+        "networking": {
+            "default": {
+                "port": 5000,
+                "protocol": "http"
+            }
+        },
     }
     # Create pod
     rsp = client.post("/pods", data=json.dumps(pod_def), headers=headers)
@@ -60,9 +65,9 @@ def test_create_pod(headers):
     # Check the pod object
     assert result['status'] == "REQUESTED"
     assert result['pod_id'] == test_pod_1
-    assert result['pod_template'] == "template/neo4j"
+    assert result['image'] == "tiangolo/uvicorn-gunicorn-fastapi"
 
-def test_check_get_pods(headers):
+def test_check_list_pods(headers):
     rsp = client.get("/pods", headers=headers)
     result = basic_response_checks(rsp)
     found_pod = False
@@ -87,7 +92,7 @@ def test_pod_startup(headers):
     # Check the pod object
     assert result['status'] == "AVAILABLE"
     assert result['pod_id'] == test_pod_1
-    assert result['pod_template'] == "template/neo4j"
+    assert result['image'] == "tiangolo/uvicorn-gunicorn-fastapi"
 
 def test_get_pod(headers):
     rsp = client.get(f"/pods/{test_pod_1}", headers=headers)
@@ -96,7 +101,7 @@ def test_get_pod(headers):
     # Check the pod object
     #assert result['status'] == "AVAILABLE"
     assert result['pod_id'] == test_pod_1
-    assert result['pod_template'] == "template/neo4j"
+    assert result['image'] == "tiangolo/uvicorn-gunicorn-fastapi"
 
 def test_get_pod_logs(headers):
     rsp = client.get(f"/pods/{test_pod_1}/logs",
@@ -161,7 +166,7 @@ def test_description_length_400(headers):
     # Definition
     pod_def = {
         "pod_id": test_pod_error_1,
-        "pod_template": "template/neo4j",
+        "image": "tiangolo/uvicorn-gunicorn-fastapi",
         "description": "Test" * 200
     }
     # Attempt to create pod
@@ -176,7 +181,7 @@ def test_description_is_ascii_400(headers):
     # Definition
     pod_def = {
         "pod_id": test_pod_error_1,
-        "pod_template": "template/neo4j",
+        "image": "tiangolo/uvicorn-gunicorn-fastapi",
         "description": "cafè"
     }
     # Attempt to create pod

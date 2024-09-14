@@ -45,7 +45,7 @@ def teardown(headers):
 
 
 ### Testing Volumes
-def test_get_volumes(headers):
+def test_list_volumes(headers):
     rsp = client.get("/pods/volumes", headers=headers)
     result = basic_response_checks(rsp)
     assert result is not None
@@ -65,7 +65,7 @@ def test_create_volume(headers):
     time.sleep(2)
 
 
-def test_check_get_volumes(headers):
+def test_check_list_volumes(headers):
     rsp = client.get("/pods/volumes", headers=headers)
     result = basic_response_checks(rsp)
     found_pod = False
@@ -167,11 +167,16 @@ def test_update_volume_no_change(headers):
 
 ### Pod with Volume Mounted!
 def test_create_pod_with_volume(headers):
-    # Definition
     pod_def = {
         "pod_id": test_pod_1,
-        "pod_template": "template/neo4j",
-        "description": "Test neo4j pod with mounted volume",
+        "image": "tiangolo/uvicorn-gunicorn-fastapi",
+        "description": "Test fastapi server pod",
+        "networking": {
+            "default": {
+                "port": 5000,
+                "protocol": "http"
+            }
+        },
         "volume_mounts": {
             test_volume_1: {
                 "type": "tapisvolume",

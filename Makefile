@@ -115,6 +115,11 @@ endif
 	@echo ""
 
 
+#: Initialize a few templates
+init-data:
+	@echo "Not yet implemented"
+
+
 # Runs pytest in the pods-api container
 #: Run tests in pods-api container
 test:
@@ -132,6 +137,7 @@ build: vars
 	@echo "Makefile: $(GREEN)build$(NC)"
 	@echo "  🔨 : Running image build."
 	@echo "  🌎 : Using daemon: $(LCYAN)minikube$(NC)"
+	@echo "  🏃 : Building: This part takes a while if it takes a while."
 	@echo ""
 	minikube image build -t $(SERVICE_NAME)/pods-api:$$TAG ./
 	@echo ""

@@ -80,6 +80,150 @@
         "description": "Maximum GPU allocation pod is allowed to have in resources.gpus.",
         "default": 1
       },
+      "postgres_engine_echo_for_debug": {
+        "type": "boolean",
+        "description": "Whether or not to echo postgres engine queries for debugging.",
+        "default": false
+      },
+      "compute_queues": {
+        "type": "array",
+        "description": "List of node objects available to the spawner using this config.",
+        "required": ["queue_name"],
+        "additionalProperties": false,
+        "items": {
+          "type": "object",
+          "properties": {
+            "queue_name": {
+              "type": "string",
+              "description": "Name of the queue being made available."
+            },
+            "default": {
+              "type": "boolean",
+              "description": "Whether or not this is the default queue to use."
+            },
+            "node_selector": {
+              "type": "string",
+              "description": "Kubernetes spec.nodeSelector required to access node. [A-z][0-9]-_ comma seperated. e.g. 'gpu,v100', 'region,us-west', 'name_id,my_node_id'"
+            },
+            "description": {
+              "type": "string",
+              "description": "Description to be displayed in the UI."
+            },
+            "cpu_info": {
+              "type": "string",
+              "description": "CPU information of the node. e.g. 'Intel(R) Xeon(R) CPU E5-2686 v4 @ 2.30GHz'",
+              "default": "Unknown - Not defined in config.yml"
+            },
+            "cpu_architecture": {
+              "type": "string",
+              "description": "Architecture of the node. e.g. 'x86_64' or 'arm64'",
+              "default": "Unknown - Not defined in config.yml"
+            },
+            "max_memory": {
+              "type": "integer",
+              "description": "Maximum memory (RAM) allowed for this queue in GB."
+            },
+            "default_memory_limit": {
+              "type": "integer",
+              "description": "Default memory (RAM) limit for this queue in GB."
+            },
+            "default_memory_request": {
+              "type": "integer",
+              "description": "Default memory (RAM) request for this queue in GB."
+            },
+            "min_memory": {
+              "type": "integer",
+              "description": "Minimum memory (RAM) allowed for this queue in GB.",
+              "default": 256
+            },
+            "max_cpus": {
+              "type": "integer",
+              "description": "Maximum CPU value allowed for this queue."
+            },
+            "default_cpu_limit": {
+              "type": "integer",
+              "description": "Default CPU limit for pods on this queue."
+            },
+            "default_cpu_request": {
+              "type": "integer",
+              "description": "Default CPU request for pods on this queue."
+            },
+            "min_cpus": {
+              "type": "integer",
+              "description": "Minimum CPU value allowed for this queue.",
+              "default": 250
+            },
+            "tolerations": {
+              "type": "array",
+              "description": "Kubernetes spec.tolerations required to tolerate the node.",
+              "required": ["key"],
+              "additionalProperties": false,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "Key of the toleration."
+                  },
+                  "operator": {
+                    "type": "string",
+                    "description": "Operator of the toleration."
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "Value of the toleration."
+                  },
+                  "effect": {
+                    "type": "string",
+                    "description": "Effect of the toleration."
+                  }
+                }
+              }
+            },
+            "gpu_resources": {
+              "type": "array",
+              "description": "List of GPU resources available to the spawner using this config.",
+              "required": ["device_name", "activation_resource"],
+              "additionalProperties": false,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "gpu_name": {
+                    "type": "string",
+                    "description": "Colloquial name for the GPU device. e.g. 'NVIDIA Tesla V100-SXM2-16GB' or 'NVIDIA Tesla T4'"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Description to be displayed in the UI for the device."
+                  },
+                  "brand": {
+                    "type": "string",
+                    "description": "Brand of the GPU device. e.g. 'NVIDIA' or 'AMD'"
+                  },
+                  "vram": {
+                    "type": "integer",
+                    "description": "Amount of VRAM on the device in GB."
+                  },
+                  "activation_resource": {
+                    "type": "string",
+                    "description": "Activation resource for the GPU device. What you put in K8 'spec.containers[X].resources.requests' to activate this GPU. e.g. 'nvidia.com/gpu' or 'nvidia.com/gpu.shared"
+                  },
+                  "default_gpu_request": {
+                    "type": "integer",
+                    "description": "Default int a user can request for this device.",
+                    "default": 1
+                  },
+                  "max_gpu_request": {
+                    "type": "integer",
+                    "description": "Maximum gpus a user can request for this device. Time-sliced GPUs should say 1 unless they work different, if so, contact admin.",
+                    "default": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "spawner_host_id": {
         "type": "integer",
         "description": "Unique host_id for worker host. Each host should have at least one spawner and health check worker."
