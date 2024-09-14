@@ -30,10 +30,10 @@ from models_misc import PermissionsModel, CredentialsModel, LogsModel
 from models_volumes import Volume
 from models_snapshots import Snapshot
 
-def get_queue_by_name(cluster_queues, queue_name):
+def get_queue_by_name(compute_queues, queue_name):
     logger.debug("top of kubernetes_utils.deduct_queue_settings().")
 
-    for queue in cluster_queues:
+    for queue in compute_queues:
         if queue['queue_name'] == queue_name:
             return queue
     return None
@@ -529,9 +529,9 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
                 raise ValueError(f"compute_queue must be lowercase alphanumeric.")
 
             ### Check if the queue exists in config, database later
-            deducted_queue = get_queue_by_name(conf.cluster_queues, v)
+            deducted_queue = get_queue_by_name(conf.compute_queues, v)
             if not deducted_queue:
-                raise ValueError(f"compute_queue must be in cluster_queues list in cluster configuration.")
+                raise ValueError(f"compute_queue must be in compute_queues list in cluster configuration.")
         return v
 
     @root_validator(pre=False)

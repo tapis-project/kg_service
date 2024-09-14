@@ -53,8 +53,7 @@
     },
     "tacc_tenant_object": {
     },
-    "cluster_name": "default",
-    "cluster_queues": [
+    "compute_queues": [
         {
             "queue_name": "default",
             "default": true,
