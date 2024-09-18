@@ -227,7 +227,7 @@ def set_traefik_proxy():
                 pod_id = pod_id_section
             logger.critical(f"pod_id: {pod_id}, tapis_domain: {tapis_domain}, net_info: {net_info}")
             forward_auth_info = {
-                "tapis_auth": net_info.get('tapis_auth', True),
+                "tapis_auth": net_info.get('tapis_auth', False),
                 "auth_url": f"https://{tapis_domain}/v3/pods/{pod_id}/auth",
                 "tapis_auth_response_headers": net_info.get('tapis_auth_response_headers', []),
             }
