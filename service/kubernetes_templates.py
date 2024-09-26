@@ -117,7 +117,7 @@ def start_generic_pod(input_pod, revision: int):
         pods_env = pods_env.dict()
         if final_pod.environment_variables:
             for key, val in final_pod.environment_variables.items():
-                new_val = val.copy()
+                new_val = val
                 if isinstance(val, str):
                     # regex to create list of [<<TAPIS_*>> strings, str of inner variable without >><<]
                     matches = re.findall(r'<<TAPIS_(.*?)>>', val)

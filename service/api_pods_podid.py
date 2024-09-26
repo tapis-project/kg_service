@@ -130,7 +130,7 @@ async def get_derived_pod(pod_id):
     pods_env = Password.db_get_with_pk(pod.pod_id, pod.tenant_id, pod.site_id)
     pods_env = pods_env.dict()
     for key, val in final_pod.environment_variables.items():
-        new_val = val.copy()
+        new_val = val
         if isinstance(val, str):
             # regex to create list of [<<TAPIS_*>> strings, str of inner variable without >><<]
             matches = re.findall(r'<<TAPIS_(.*?)>>', val)
