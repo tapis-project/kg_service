@@ -122,7 +122,7 @@ def start_generic_pod(input_pod, revision: int):
                     # regex to create list of [<<TAPIS_*>> strings, str of inner variable without >><<]
                     matches = re.findall(r'<<TAPIS_(.*?)>>', val)
                     for match in matches:
-                        val = val.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
+                        new_val = new_val.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
                     final_pod.environment_variables[key] = new_val
 
         # #command
