@@ -48,6 +48,7 @@ def derive_template_info(input_template_name, tenant: str = g.request_tenant_id,
     else:
         template_id = input_template_name
 
+    logger.critical(f"TRAINING: {template_id}, {template_tag}, {tag_timestamp}, {tenant}, {site}")
     ## template_id check
     template = Template.db_get_with_pk(template_id, tenant=tenant, site=site)
     if not template:
@@ -396,7 +397,7 @@ def combine_pod_and_template_recursively(input_obj, template_name, seen_template
             raise ValueError(f"Infinite loop detected: template {template_name} is referenced more than once in template waterfal.")
         seen_templates.add(template_name)
 
-        template_name_str, template, template_tag = derive_template_info(template_name, tenant=g.tenant_id, site=g.site_id)
+        template_name_str, template, template_tag = derive_template_info(template_name, tenant=tenant, site=site)
         modified_fields = get_modified_template_fields(TemplateTagPodDefinition().dict(), template_tag.pod_definition)
 
         # First, recursively combine the input_obj with the next template in the chain
@@ -475,7 +476,7 @@ class TemplateTag(TapisModel, table=True, validate=True):
     @validator('tag')
     def check_tag(cls, v):
         # ensure description is lowercase alphanumeric and hyphen
-        if not re.match("^[a-zA-Z0-9-]+$", v):
+        if not re.match("^[a-zA-Z0-9-.]+$", v):
             raise ValueError(f"tag field may only contain lowercase alphanumeric characters and hyphens.")
         # make sure description < 80 characters
         if len(v) > 80:
