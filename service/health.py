@@ -238,6 +238,7 @@ def check_k8_pods(k8_pods):
         logs = get_k8_logs(k8_pod['k8_name'])
         if pod.logs != logs:
             pod.logs = logs
+            logger.info(f"Before update with logs: {pod}")
             pod.db_update() # just adding logs, no action_logs needed.
 
 def check_k8_services():
