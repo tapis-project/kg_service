@@ -239,7 +239,10 @@ def check_k8_pods(k8_pods):
         if pod.logs != logs:
             pod.logs = logs
             logger.critical(f"UPDATING:: Before update with logs: {pod}")
-            pod.db_update() # just adding logs, no action_logs needed.
+            try:
+                pod.db_update()  # just adding logs, no action_logs needed.
+            except Exception as e:
+                logger.error(f"Error updating pod logs: {e}", exc_info=True)
 
 def check_k8_services():
     # This is all for only the site specified in conf.site_id.
