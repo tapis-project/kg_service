@@ -389,7 +389,7 @@ def main():
             logger.info("Successfully connected to dbs.")
             break
         except Exception as e:
-            logger.info(f"Can't connect to dbs yet idx: {idx}. e: {e.orig}") # args: {e.args} # add e.args for more detail
+            logger.info(f"Can't connect to dbs yet idx: {idx}. e: {e}") # args: {e.args} # add e.args for more detail
             # Health seems to take a few seconds to come up (due to database creation and api creation)
             # Increment and have a short wait
             idx += 1
