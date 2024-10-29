@@ -444,6 +444,7 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
             elif not image and not template: # check if either are moved from default
                 raise ValueError("image is required if template is not provided.")
             elif not image and template:
+                logger.debug(f"top of first check_images derive_template_info() with tenant_id: {tenant_id}, site_id: {site_id}")
                 template_name_str, template, template_tag = derive_template_info(template, tenant=tenant_id, site=site_id)
                 image = template_tag.pod_definition.get("image")
                 inner_template = template_tag.pod_definition.get("template")
@@ -452,6 +453,7 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
                 elif not image and not inner_template:
                     raise ValueError("Could not find image or template on template that the user specified.")
                 elif not image and inner_template:
+                    logger.debug(f"top of second check_images derive_template_info() with tenant_id: {tenant_id}, site_id: {site_id}")
                     #raise ValueError("Pods cannot have more than 2 levels of templates. (template -> template -> image)")
                     template_name_str, template, template_tag = derive_template_info(inner_template, tenant=tenant_id, site=site_id)
                     image = template_tag.pod_definition.get("image")
