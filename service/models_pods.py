@@ -414,13 +414,18 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
                     raise ValueError(f"modified_fields must match the fields of the Pod object. Got {arg}.")
         return v
 
-    @validator('template')
-    def check_template(cls, v):
-        if v:
-            template_name_str, template, template_tag = derive_template_info(v, g.tenant_id, g.site_id)
-            return template_name_str
-        else:
-            return v
+    # template
+    @root_validator(pre=False)
+    def check_template(cls, values):
+        template = values.get('template')
+        tenant_id = values.get('tenant_id')
+        site_id = values.get('site_id')
+        
+        if template is not None and tenant_id is not None and site_id is not None:
+            logger.debug(f"top of PodBaseFull.check_template() with template: {template}, tenant_id: {tenant_id}, site_id: {site_id}")
+            template_name_str, template, template_tag = derive_template_info(template, tenant_id, site_id)
+            values['template'] = template_name_str
+        return values
 
     @root_validator(pre=False) # image and template if image not provided
     def check_image(cls, values):
