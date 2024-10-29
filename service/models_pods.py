@@ -420,7 +420,8 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
         template = values.get('template')
         tenant_id = values.get('tenant_id')
         site_id = values.get('site_id')
-        
+        logger.debug(f"top of PodBaseFull.check_template() with template: {template}, tenant_id: {tenant_id}, site_id: {site_id}")
+
         if template is not None and tenant_id is not None and site_id is not None:
             logger.debug(f"top of PodBaseFull.check_template() with template: {template}, tenant_id: {tenant_id}, site_id: {site_id}")
             template_name_str, template, template_tag = derive_template_info(template, tenant_id, site_id)

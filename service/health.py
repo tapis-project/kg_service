@@ -101,7 +101,7 @@ def graceful_rm_pod(pod, log=None):
 
         return rm_pod(pod.k8_name)
     except Exception as e:
-        logger.error(f"Failed to gracefully remove pod {pod.k8_name}: {e}")
+        logger.error(f"Failed to gracefully remove pod {pod.k8_name}")
         raise
 
 def graceful_rm_volume(volume):
@@ -119,8 +119,9 @@ def graceful_rm_volume(volume):
 
         return rm_volume(volume.k8_name)
     except Exception as e:
-        logger.error(f"Failed to gracefully remove volume {volume.k8_name}: {e}")
+        logger.error(f"Failed to gracefully remove volume {volume.k8_name}")
         raise
+
 def check_k8_pods(k8_pods):
     """
     Check the health of Kubernetes pods.
