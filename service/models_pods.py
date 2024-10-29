@@ -432,17 +432,19 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
     def check_image(cls, values):
         image = values.get('image')
         template = values.get('template')
+        tenant_id = values.get('tenant_id')
+        site_id = values.get('site_id')
 
-        logger.debug(f"top of PodBaseFull.check_image() with image: {image} and template: {template}")
+        logger.debug(f"top of PodBaseFull.check_image() with image: {image}, template: {template}, tenant_id: {tenant_id}, site_id: {site_id}")
         ## Wait to make sure enough validation has happened for both to be initially set.
-        if image is not None and template is not None:
+        if image is not None and template is not None and tenant_id is not None and site_id is not None:
             if image:
                 # priority to template.image, so if it's set, it's top
                 pass
             elif not image and not template: # check if either are moved from default
                 raise ValueError("image is required if template is not provided.")
             elif not image and template:
-                template_name_str, template, template_tag = derive_template_info(template, tenant=g.tenant_id, site=g.site_id)
+                template_name_str, template, template_tag = derive_template_info(template, tenant=tenant_id, site=site_id)
                 image = template_tag.pod_definition.get("image")
                 inner_template = template_tag.pod_definition.get("template")
                 if image:
@@ -451,7 +453,7 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
                     raise ValueError("Could not find image or template on template that the user specified.")
                 elif not image and inner_template:
                     #raise ValueError("Pods cannot have more than 2 levels of templates. (template -> template -> image)")
-                    template_name_str, template, template_tag = derive_template_info(inner_template, tenant=g.tenant_id, site=g.site_id)
+                    template_name_str, template, template_tag = derive_template_info(inner_template, tenant=tenant_id, site=site_id)
                     image = template_tag.pod_definition.get("image")
                     inner_inner_template = template_tag.pod_definition.get("template")
                     if image:

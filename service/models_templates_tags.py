@@ -48,7 +48,7 @@ def derive_template_info(input_template_name, tenant: str = g.request_tenant_id,
     else:
         template_id = input_template_name
 
-    logger.critical(f"TRAINING: {template_id}, {template_tag}, {tag_timestamp}, {tenant}, {site}")
+    logger.debug(f"Top of derive_template_info for template: {input_template_name}, tenant: {tenant}, site: {site}")
     ## template_id check
     template = Template.db_get_with_pk(template_id, tenant=tenant, site=site)
     if not template:
@@ -75,6 +75,7 @@ def derive_template_info(input_template_name, tenant: str = g.request_tenant_id,
         derived_template_tag = template_tags[0]
         _, tag_timestamp = derived_template_tag.tag_timestamp.split("@")
 
+    logger.debug(f"End of derive_template_info for template: {input_template_name}, tenant: {tenant}, site: {site}")
     return f"{template_id}:{template_tag}@{tag_timestamp}", template, derived_template_tag
 
 
