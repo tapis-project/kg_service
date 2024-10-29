@@ -33,7 +33,6 @@ class TapisModel(SQLModel):
         site_id = site or getattr(obj, 'site_id', None) or 'tacc'
         logger.info(f"Using site: {site_id}; tenant: {tenant_id}. Getting tenant pg obj.")
         store = pg_store[site_id][tenant_id]
-        logger.debug(f"Using site: {site_id}; tenant: {tenant_id}; Session: {Session}.")
         return site_id, tenant_id, store
 
     def db_create(self, tenant: str = None, site: str = None):

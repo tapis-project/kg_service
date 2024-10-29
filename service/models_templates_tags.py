@@ -62,7 +62,7 @@ def derive_template_info(input_template_name, tenant: str = g.request_tenant_id,
         full_tag = f"{template_tag}@{tag_timestamp}"
         template_tags = TemplateTag.db_get_where(where_params=[['tag_timestamp', '.eq', full_tag]], sort_column='creation_ts', tenant=tenant, site=site)
         if not template_tags:
-            raise ValueError(f"Error finding template tag. Could not find tag_timestamp matching: {input_template_name}.")
+            raise ValueError(f"Error finding template tag. Could not find tag_timestamp matching: {input_template_name}. tenant: {tenant}, site: {site}.")
         if len(template_tags) > 1:
             raise ValueError(f"Error finding template tag. Found multiple tags when expecting only one: {input_template_name}. Big error. Message someone.")
         derived_template_tag = template_tags[0]
