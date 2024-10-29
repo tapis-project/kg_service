@@ -389,6 +389,7 @@ def combine_pod_and_template_recursively(input_obj, template_name, seen_template
     d = combine_pod_and_template_recursively(pod, "template21:car@2024-06-11-18:09:39")
     d.description
     """
+    console.debug(f"Top of combine_pod_and_template_recursively for template: {template_name}, tenant: {tenant}, site: {site}")
     if seen_templates is None:
         seen_templates = set()
 
