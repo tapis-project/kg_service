@@ -86,19 +86,23 @@ def rm_volume(k8_name):
 
     return volume_exists
 
-def graceful_rm_pod(pod, log = None):
+def graceful_rm_pod(pod, log=None):
     """
     This is async. Commands run, but deletion takes some time.
     Needs to delete pod, delete service, and change traefik to "offline" response.
     TODO Set status to shutting down. Something else will put into "STOPPED".
     """
-    logger.info(f"Top of shutdown pod for pod: {pod.k8_name}")
-    # Change pod status to SHUTTING DOWN
-    pod.status = DELETING
-    pod.db_update(log)
-    logger.debug(f"spawner has updated pod status to DELETING")
+    try:
+        logger.info(f"Top of shutdown pod for pod: {pod.k8_name}")
+        # Change pod status to SHUTTING DOWN
+        pod.status = DELETING
+        pod.db_update(log)
+        logger.debug(f"spawner has updated pod status to DELETING")
 
-    return rm_pod(pod.k8_name)
+        return rm_pod(pod.k8_name)
+    except Exception as e:
+        logger.error(f"Failed to gracefully remove pod {pod.k8_name}: {e}")
+        raise
 
 def graceful_rm_volume(volume):
     """
@@ -106,14 +110,17 @@ def graceful_rm_volume(volume):
     Needs to delete volume, delete volume, and change traefik to "offline" response.
     TODO Set status to shutting down. Something else will put into "STOPPED".
     """
-    logger.info(f"Top of shutdown volume for volume: {volume.k8_name}")
-    # Change pod status to SHUTTING DOWN
-    volume.status = DELETING
-    volume.db_update()
-    logger.debug(f"spawner has updated volume status to DELETING")
+    try:
+        logger.info(f"Top of shutdown volume for volume: {volume.k8_name}")
+        # Change volume status to SHUTTING DOWN
+        volume.status = DELETING
+        volume.db_update()
+        logger.debug(f"spawner has updated volume status to DELETING")
 
-    return rm_volume(volume.k8_name)
-
+        return rm_volume(volume.k8_name)
+    except Exception as e:
+        logger.error(f"Failed to gracefully remove volume {volume.k8_name}: {e}")
+        raise
 def check_k8_pods(k8_pods):
     """
     Check the health of Kubernetes pods.
