@@ -202,7 +202,10 @@ def set_traefik_proxy():
     http_proxy_info = {}
     postgres_proxy_info = {}
     for input_pod in all_pods:
+#        logger.critical(f"TRAINING22-input_pod.tenant_id: {input_pod.tenant_id}, input_pod.site_id: {input_pod.site_id}")
         pod = combine_pod_and_template_recursively(input_pod, input_pod.template, tenant=input_pod.tenant_id, site=input_pod.site_id)
+#        logger.critical(f"TRAINING22-pod: HERE?")
+        logger.critical(f"TRAINNNED-pod: {pod}")
         # Each pod can have up to 3 networking objects with custom filled port/protocol/name
         for net_name, net_info in pod.networking.items():
             if not isinstance(net_info, dict):
@@ -254,7 +257,7 @@ def main():
     Main function for health checks.
     """
     # Try and run check_db_pods. Will try for 60 seconds until health is declared "broken".
-    logger.info("Top of health. Checking if db's are initialized.")
+    logger.info("Top of health central. Checking if db's are initialized.")
     idx = 0
     while idx < 12:
         try:

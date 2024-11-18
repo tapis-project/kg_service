@@ -31,7 +31,7 @@ from models_volumes import Volume
 from models_snapshots import Snapshot
 
 def get_queue_by_name(compute_queues, queue_name):
-    logger.debug("top of kubernetes_utils.deduct_queue_settings().")
+    logger.debug("top of models_pods.deduct_queue_settings().")
 
     for queue in compute_queues:
         if queue['queue_name'] == queue_name:
@@ -421,7 +421,7 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
         tenant_id = values.get('tenant_id')
         site_id = values.get('site_id')
 
-        if template is not "" and tenant_id is not None and site_id is not None:
+        if template is not "" and tenant_id is not None and tenant_id is not "" and site_id is not None and site_id is not "":
             logger.debug(f"top of PodBaseFull.check_template() with template: {template}, tenant_id: {tenant_id}, site_id: {site_id}")
             template_name_str, template, template_tag = derive_template_info(template, tenant_id, site_id)
             values['template'] = template_name_str
@@ -436,7 +436,7 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
 
         logger.debug(f"top of PodBaseFull.check_image() with image: {image}, template: {template}, tenant_id: {tenant_id}, site_id: {site_id}")
         ## Wait to make sure enough validation has happened for both to be initially set.
-        if image is not "" and template is not "" and tenant_id is not None and site_id is not None:
+        if image is not "" and template is not "" and tenant_id is not None and tenant_id is not "" and site_id is not None and site_id is not "":
             if image:
                 # priority to template.image, so if it's set, it's top
                 pass
