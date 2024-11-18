@@ -1,6 +1,9 @@
 entryPoints:
   web:
-   address: ":80"
+    address: ":80"
+    transport:
+      respondingTimeouts:
+        readTimeout: 10
   dash:
    address: ":8080"
 
