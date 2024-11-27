@@ -65,8 +65,21 @@ def combine_pod_and_template_recursively(input_obj, template_name, seen_template
                 else:
                     setattr(input_obj, mod_key, mod_val)
 
-            if input_obj.resources:
-                input_obj.resources = input_obj.resources.dict()
+            logger.debug(f"End of combine_pod_and_template_recursively for template: {template_name}, tenant: {tenant}, site: {site}")
+            try:
+                if input_obj.resources:
+                    input_obj.resources = input_obj.resources.dict()
+            except Exception as e:
+                logger.debug(f'this resources part: Got exception when attempting to combine pod and templates: {e}')
+                pass
+
+            try:
+                if input_obj.networking:
+                    input_obj.networking = input_obj.networking.dict()
+            except Exception as e:
+                logger.debug(f'this networking part: Got exception when attempting to combine pod and templates: {e}')
+                pass
+
 
         except Exception as e:
             logger.debug(f'Got exception when attempting to combine pod and templates: {e}')
