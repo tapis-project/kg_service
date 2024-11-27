@@ -342,13 +342,13 @@ async def pod_auth(pod_id_net, request: Request):
     # 'x-real-ip': '10.233.72.193'    
     
     # if not authenticated, start the OAuth flow
-    pod = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
+    pod_init = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
     
-    if pod.template:
+    if pod_init.template:
         # Derive the final pod object by combining the pod and templates
-        final_pod = combine_pod_and_template_recursively(pod, pod.template, tenant=g.request_tenant_id, site=g.site_id)
+        pod = combine_pod_and_template_recursively(pod_init, pod_init.template, tenant=g.request_tenant_id, site=g.site_id)
     else:
-        final_pod = pod
+        pod = pod_init
 
     net_info = pod.networking.get(network_key, None)
     if not net_info:
@@ -357,7 +357,10 @@ async def pod_auth(pod_id_net, request: Request):
     # check if dict
     # net_info
     if type(net_info) is not dict:
-        return JSONResponse(content = f"Pod {pod_id} net_info is not a dict, it's a {type(net_info)}", status_code = 500)
+        try:
+            net_info = net_info.dict()
+        except Exception as e:
+            raise Exception(f"Error converting net_info to dict: {e}")
 
     authenticated, xTapisUsername, _ = is_logged_in(request.cookies)
     # if already authenticated, return 200, which will allow the request to continue in Traefik
@@ -444,17 +447,23 @@ def callback(pod_id_net, request: Request):
     parts = pod_id_net.split('-', 1)
     pod_id = parts[0]
     network_key = parts[1] if len(parts) > 1 else 'default'
-    pod = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
-
-    if pod.template:
+    pod_init = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
+    
+    if pod_init.template:
         # Derive the final pod object by combining the pod and templates
-        final_pod = combine_pod_and_template_recursively(pod, pod.template, tenant=g.request_tenant_id, site=g.site_id)
+        pod = combine_pod_and_template_recursively(pod_init, pod_init.template, tenant=g.request_tenant_id, site=g.site_id)
     else:
-        final_pod = pod
+        pod = pod_init
 
     net_info = pod.networking.get(network_key, None)
     if not net_info:
         raise Exception(f"Pod {pod_id} does not have networking key that matches pod_id_net: {pod_id_net}")
+
+    if type(net_info) is not dict:
+        try:
+            net_info = net_info.dict()
+        except Exception as e:
+            raise Exception(f"Error converting net_info to dict: {e}")
 
     pod_id, tapis_domain = net_info['url'].split('.pods.') ## Should return `mypod` & `tacc.tapis.io` with proper tenant and schmu
     tapis_tenant = tapis_domain.split('.')[0]

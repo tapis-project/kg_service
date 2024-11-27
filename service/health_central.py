@@ -232,7 +232,7 @@ def set_traefik_proxy():
             forward_auth_info = {
                 "tapis_auth": net_info.get('tapis_auth', False),
                 "auth_url": f"https://{tapis_domain}/v3/pods/{pod_id}/auth",
-                "tapis_auth_response_headers": net_info.get('tapis_auth_response_headers', []),
+                "tapis_auth_response_headers": net_info.get('tapis_auth_response_headers', {}),
             }
 
             match net_info['protocol']:
