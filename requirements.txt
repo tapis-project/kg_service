@@ -20,6 +20,7 @@ kubernetes==28.1.0
 neo4j-driver
 rabbitpy
 channelpy
+python-multipart
 
 # Misc
 pylint

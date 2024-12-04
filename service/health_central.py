@@ -202,7 +202,10 @@ def set_traefik_proxy():
     http_proxy_info = {}
     postgres_proxy_info = {}
     for input_pod in all_pods:
+#        logger.critical(f"TRAINING22-input_pod.tenant_id: {input_pod.tenant_id}, input_pod.site_id: {input_pod.site_id}")
         pod = combine_pod_and_template_recursively(input_pod, input_pod.template, tenant=input_pod.tenant_id, site=input_pod.site_id)
+#        logger.critical(f"TRAINING22-pod: HERE?")
+        logger.critical(f"TRAINNNED-pod: {pod}")
         # Each pod can have up to 3 networking objects with custom filled port/protocol/name
         for net_name, net_info in pod.networking.items():
             if not isinstance(net_info, dict):
@@ -227,9 +230,9 @@ def set_traefik_proxy():
                 pod_id = pod_id_section
             logger.critical(f"pod_id: {pod_id}, tapis_domain: {tapis_domain}, net_info: {net_info}")
             forward_auth_info = {
-                "tapis_auth": net_info.get('tapis_auth', True),
+                "tapis_auth": net_info.get('tapis_auth', False),
                 "auth_url": f"https://{tapis_domain}/v3/pods/{pod_id}/auth",
-                "tapis_auth_response_headers": net_info.get('tapis_auth_response_headers', []),
+                "tapis_auth_response_headers": net_info.get('tapis_auth_response_headers', {}),
             }
 
             match net_info['protocol']:
@@ -254,7 +257,7 @@ def main():
     Main function for health checks.
     """
     # Try and run check_db_pods. Will try for 60 seconds until health is declared "broken".
-    logger.info("Top of health. Checking if db's are initialized.")
+    logger.info("Top of health central. Checking if db's are initialized.")
     idx = 0
     while idx < 12:
         try:

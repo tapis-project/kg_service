@@ -65,8 +65,21 @@ def combine_pod_and_template_recursively(input_obj, template_name, seen_template
                 else:
                     setattr(input_obj, mod_key, mod_val)
 
-            if input_obj.resources:
-                input_obj.resources = input_obj.resources.dict()
+            logger.debug(f"End of combine_pod_and_template_recursively for template: {template_name}, tenant: {tenant}, site: {site}")
+            try:
+                if input_obj.resources:
+                    input_obj.resources = input_obj.resources.dict()
+            except Exception as e:
+                logger.debug(f'this resources part: Got exception when attempting to combine pod and templates: {e}')
+                pass
+
+            try:
+                if input_obj.networking:
+                    input_obj.networking = input_obj.networking.dict()
+            except Exception as e:
+                logger.debug(f'this networking part: Got exception when attempting to combine pod and templates: {e}')
+                pass
+
 
         except Exception as e:
             logger.debug(f'Got exception when attempting to combine pod and templates: {e}')
@@ -117,25 +130,28 @@ def start_generic_pod(input_pod, revision: int):
         pods_env = pods_env.dict()
         if final_pod.environment_variables:
             for key, val in final_pod.environment_variables.items():
+                new_val = val
                 if isinstance(val, str):
                     # regex to create list of [<<TAPIS_*>> strings, str of inner variable without >><<]
                     matches = re.findall(r'<<TAPIS_(.*?)>>', val)
                     for match in matches:
-                        final_pod.environment_variables[key] = val.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
-        #command
-        if final_pod.command:
-            for key in final_pod.command:
-                if isinstance(key, str):
-                    matches = re.findall(r'<<TAPIS_(.*?)>>', key)
-                    for match in matches:
-                        final_pod.command[key] = key.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
-        #arguments
-        if final_pod.arguments:
-            for key in final_pod.arguments:
-                if isinstance(key, str):
-                    matches = re.findall(r'<<TAPIS_(.*?)>>', key)
-                    for match in matches:
-                        final_pod.arguments[key] = key.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
+                        new_val = new_val.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
+                    final_pod.environment_variables[key] = new_val
+
+        # #command
+        # if final_pod.command:
+        #     for key in final_pod.command:
+        #         if isinstance(key, str):
+        #             matches = re.findall(r'<<TAPIS_(.*?)>>', key)
+        #             for match in matches:
+        #                 final_pod.command[key] = key.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
+        # #arguments
+        # if final_pod.arguments:
+        #     for key in final_pod.arguments:
+        #         if isinstance(key, str):
+        #             matches = re.findall(r'<<TAPIS_(.*?)>>', key)
+        #             for match in matches:
+        #                 final_pod.arguments[key] = key.replace(f"<<TAPIS_{match}>>", pods_env.get(match))
 
     volumes = []
     volume_mounts = []

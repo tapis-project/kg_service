@@ -4,9 +4,11 @@ from models_pods import Pod, Password, PodResponse, PodPermissionsResponse, PodC
 from models_misc import SetPermission
 from channels import CommandChannel
 from codes import OFF, ON, RESTART, REQUESTED, STOPPED
+import requests
 from tapisservice.tapisfastapi.utils import g, ok
 from tapisservice.config import conf
 from __init__ import t, BadRequestError
+from models_templates_tags import combine_pod_and_template_recursively
 
 
 from tapisservice.logs import get_logger
@@ -266,18 +268,19 @@ def is_logged_in(cookies):
     If so: return True, username, roles
     Otherwise: return False, None, None
     """
-    if 'username' in cookies:
-        return True, cookies['username'], cookies['roles']
+    logger.debug(f"Checking if logged in: {cookies}")
+    if 'X-Tapis-Username' in cookies:
+        return True, cookies['X-Tapis-Username'], None
     return False, None, None
 
 
-def get_username(token):
+def get_username(tapis_domain, token):
     """
     Validate a Tapis JWT, `token`, and resolve it to a username.
     """
     headers = {'Content-Type': 'text/html'}
     # call the userinfo endpoint
-    url = f"{config['tapis_base_url']}/v3/oauth2/userinfo"
+    url = f"https://{tapis_domain}/v3/oauth2/userinfo"
     headers = {'X-Tapis-Token': token}
     try:
         rsp = requests.get(url, headers=headers)
@@ -297,14 +300,31 @@ def get_username(token):
     response_model=PodResponse)
 async def pod_auth(pod_id_net, request: Request):
     """
-    Write to session
+    Auth endpoint for each pod. When a networking object defines tapis_auth=True, this endpoint manages auth.
 
-    Traefik continues to user pod if 200, otherwise goes to result.
-    Process a callback from a Tapis authorization server:
-      1) Get the authorization code from the query parameters.
-      2) Exchange the code for a token
-      3) Add the user and token to the sessionhttps
-      4) Redirect to the /data endpoint.
+    Traefik has a forwardAuth middleware for http routes. This redirects users, auth happens, if traefik gets 200 then traefik allows user to endpoint.
+    Auth flow for a user getting to "fastapi hello world" pod at https://fastapi.pods.tacc.tapis.io.
+      1) User navigates to https://fastapi.pods.tacc.tapis.io
+      2) Traefik redirects user to https://tacc.tapis.io/v3/pods/fastapi/auth
+      3) Check if logged in via cookies, if logged in, respond 200 + set user defined headers. Otherwise...
+      4) Pods service creates client in correct tenant for user or updates client if it already exists. (we expect only one client in use at a time)
+      5) With client the /auth endpoint redirects users to https://tacc.tapis.io/v3/oauth2/authorize?client_id={client_id}&redirect_uri={callback_url}&response_type=code
+      6) User logs in via browser, authorizes client, redirects to callback_url at https://tacc.tapis.io/v3/pods/fastapi/auth/callback?code=CodeHere
+      7) Callback url exchanges code for token, gets username from token, sets X-Tapis-Token and X-Tapis-Username cookies
+      8) User gets redirected back to https://fastapi.pods.tacc.tapis.io, Traefik starts forwardAuth, user at this point should be authenticated
+      9) Auth endpoint responds with 200, sets headers specified by networking stanza, and users gets to fastapi hello world response.
+
+    users can specify:
+     - tapis_auth=True/False - Turns on auth
+     - tapis_auth_response_headers - dict[str] - headers to set on response and their values
+     - tapis_auth_allowed_users - list[str] - list of tapis users allowed to access pod
+     - tapis_auth_return_path - str - uri to return to after auth, default is "passthrough", which we save in cookies(?) and return to. x-forwarded-host?
+    
+     - response headers need to be slightly modifiable to allow for different application requirements
+     - for example we have to pass username, but many apps require @email.bit, so user must be able to append to user.
+     - tapis_auth_response_headers: {"X-Tapis-Username": "<<tapisusername>>@tapis.io", "X-Tapis-Token": "<<token>>", "OAUTH2_USERNAME_KEY": "username"}
+
+     - tapis_auth_allowed_users, checks username against .lower() of username list to make sure it's in list. otherwise deny
     """
     logger.debug(f"GET /pods/{pod_id_net}/auth - pod-auth, headers: {request.headers}, request.cookies: {request.cookies}")
     # In cases where networking key is not 'default', the pod_id_net is f"{pod_id}-{network_key}"
@@ -320,105 +340,101 @@ async def pod_auth(pod_id_net, request: Request):
     # 'x-forwarded-proto': 'http'
     # 'x-forwarded-server': 'pods-traefik-65c7ccb5fd-ffk4g'
     # 'x-real-ip': '10.233.72.193'    
-
-    ## if x-tapis-token in headers or in session, continue, otherwise authorize and set one or both.
-    xTapisToken = "test"
-    username = None
-    if username:
-        return JSONResponse(
-            status_code=200,
-            content=ok(f"I promise I'm username: {username}."),
-            # session={
-            #     "X-TapisUsername": username,
-            #     "X-Tapis-Token": xTapisToken
-            # },
-            headers={
-                "X-TapisUsername": username,
-                "X-Tapis-Token": xTapisToken
-            })
-
+    
+    # if not authenticated, start the OAuth flow
+    pod_init = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
+    
+    if pod_init.template:
+        # Derive the final pod object by combining the pod and templates
+        pod = combine_pod_and_template_recursively(pod_init, pod_init.template, tenant=g.request_tenant_id, site=g.site_id)
     else:
-        authenticated, _, _ = is_logged_in(request.cookies)
-        # if already authenticated, return 200, which will allow the request to continue in Traefik
-        if authenticated:
-            return {'code': 200} #result = {'path':'/', 'code': 302}
+        pod = pod_init
 
-        # if not authenticated, start the OAuth flow
-        pod = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
-        
-        net_info = pod.networking.get(network_key, None)
-        if not net_info:
-            raise Exception(f"Pod {pod_id} does not have networking key that matches pod_id_net: {pod_id_net}")
+    net_info = pod.networking.get(network_key, None)
+    if not net_info:
+        raise Exception(f"Pod {pod_id} does not have networking key that matches pod_id_net: {pod_id_net}")
 
-        
-        # Get info for clients
-        # The goal is: https://tacc.develop.tapis.io/v3/pods/{{pod_id}}/auth
-        pod_id, tapis_domain = net_info['url'].split('.pods.') ## Should return `mypod` & `tacc.tapis.io` with proper tenant and schmu
-        if not net_info.get('tapis_auth', False):
-            return JSONResponse(content = f"This pod does not have tapis_auth configured in networking for this pod_id_net: {pod_id_net}. Leave or remedy.", status_code = 403)        
-        
-        
-        auth_url =  f"https://{tapis_domain}/v3/pods/{pod_id_net}/auth"
-        auth_callback_url =  f"https://{tapis_domain}/v3/pods/{pod_id_net}/auth/callback" # should match client callback_url
-        tapis_auth_response_headers = net_info.get('tapis_auth_response_headers', [])
-
-        client_id = f"PODS-SERVICE-{pod.k8_name}-{network_key}"
-        #client_key = "4STQ^t&RGa$sah!SZ9zCP9UScGoEkS^GYLZDjjtjPBipp4kVLyrr@X"
-        client_display_name = f"Tapis Pods Service Pod: {pod_id}"
-        client_description = f"Tapis Pods Service Pod: {pod_id}"
-
-        oauth2_url = f"https://{tapis_domain}/v3/oauth2/authorize?client_id={client_id}&redirect_uri={auth_callback_url}&response_type=code"
-
-        # Create tapis client or update tapis client if needed
+    # check if dict
+    # net_info
+    if type(net_info) is not dict:
         try:
-            res, td = t.authenticator.create_client(
-                client_id = client_id,
-                #client_key = client_key,
-                callback_url = auth_callback_url,
-                display_name = client_display_name,
-                description = client_description,
-                _x_tapis_tenant = g.request_tenant_id,
-                _x_tapis_user = "pods",
-                _tapis_debug = True
-            )
-        except BadRequestError as e: # Exceptions in 3 shouldn't have e.message (only e.args), but this one does.
-            logger.debug(f"Got error creating client: {e.message}")
-            if "This change would violate uniqueness constraints" in e.message:
-                logger.debug(f"Client already exists, updating client_id: {client_id}")
-                try:
-                    res, td = t.authenticator.update_client(
-                        client_id = client_id,
-                        callback_url = auth_callback_url,
-                        display_name = client_display_name,
-                        description = client_description,
-                        _x_tapis_tenant = g.request_tenant_id,
-                        _x_tapis_user = "pods",
-                        _tapis_debug = True
-                    )
-                    # Assuming you want to return a success response after updating
-                    success_msg = f"Client {client_id} updated successfully. oauth2_url is: {oauth2_url}"
-                    logger.info(success_msg)
-                    #return JSONResponse(content = success_msg, status_code = 200)
-                    return RedirectResponse(url=oauth2_url, status_code=302)
-                except Exception as e:
-                    msg = (f"Error updating client_id: {client_id}. e: {e.args}, e: {e}, dir(e): {dir(e)}")
-                    logger.warning(msg)
-                    return JSONResponse(content = msg, status_code = 500)
-            msg = (f"Error creating client_id: {client_id}. e: {e.args}, e: {e.message}, dir(e): {dir(e)}")
-            logger.warning(msg)
-            return JSONResponse(content = msg, status_code = 500)
-                
-            
+            net_info = net_info.dict()
+        except Exception as e:
+            raise Exception(f"Error converting net_info to dict: {e}")
 
-        result = {'path': auth_callback_url, 'code': 302}
+    authenticated, xTapisUsername, _ = is_logged_in(request.cookies)
+    # if already authenticated, return 200, which will allow the request to continue in Traefik
+    if authenticated:
+        username = xTapisUsername + "@tapis.io"
+        logger.debug(f"GET /pods/{pod_id_net}/auth - pod-auth, already authenticated X-Tapis-Username: {username}")
+        #return {'code': 200} #result = {'path':'/', 'code': 302}
+        return JSONResponse(content=ok("Already authenticated"), status_code=200, headers={"X-Tapis-Username": username})
 
-        return RedirectResponse(url=auth_callback_url, status_code=200)
-        return JSONResponse(content = str(result))
+    
+    # Get info for clients
+    # The goal is: https://tacc.develop.tapis.io/v3/pods/{{pod_id}}/auth
+    pod_id, tapis_domain = net_info['url'].split('.pods.') ## Should return `mypod` & `tacc.tapis.io` with proper tenant and schmu
+    tapis_tenant = tapis_domain.split('.')[0]
+    if not net_info["tapis_auth"]:
+        return JSONResponse(content = f"This pod does not have tapis_auth configured in networking for this pod_id_net: {pod_id_net}. Leave or remedy.", status_code = 403)        
+    
+    
+    auth_url =  f"https://{tapis_domain}/v3/pods/{pod_id_net}/auth"
+    auth_callback_url =  f"https://{tapis_domain}/v3/pods/{pod_id_net}/auth/callback" # should match client callback_url
+    tapis_auth_response_headers = net_info["tapis_auth_response_headers"]
 
-    # Shouldn't be able to get here
-    raise Exception(f"not implemented")
-    return ok("I promise I'm healthy.")
+    client_id = f"PODS-SERVICE-{pod.k8_name}-{network_key}"
+    #client_key = "4STQ^t&RGa$sah!SZ9zCP9UScGoEkS^GYLZDjjtjPBipp4kVLyrr@X"
+    client_display_name = f"Tapis Pods Service Pod: {pod_id}"
+    client_description = f"Tapis Pods Service Pod: {pod_id}"
 
+    
+    logger.debug(f"GET /pods/{pod_id_net}/auth - pod-auth, headers: {request.headers}, request.cookies: {request.cookies}, tenant_id: {g.request_tenant_id}, derived_tenant_id: {tapis_tenant}, site_id: {g.site_id}")
+    
+    td = None
+    # Create tapis client or update tapis client if needed
+    try:
+        logger.debug(f"Creating client_id: {client_id}, tenant: {tapis_tenant}")
+        res, td = t.authenticator.create_client(
+            client_id = client_id,
+            #client_key = client_key,
+            callback_url = auth_callback_url,
+            display_name = client_display_name,
+            description = client_description,
+            _x_tapis_tenant = tapis_tenant,
+            _x_tapis_user = "_tapis_pods",
+            _tapis_debug = True
+        )
+    except BadRequestError as e: # Exceptions in 3 shouldn't have e.message (only e.args), but this one does.
+        logger.debug(f"Got error creating client: {e.message}")
+        if "This change would violate uniqueness constraints" in e.message:
+            logger.debug(f"Client already exists, updating client_id: {client_id}, tenant: {tapis_tenant}")
+            try:
+                res, td = t.authenticator.update_client(
+                    client_id = client_id,
+                    callback_url = auth_callback_url,
+                    display_name = client_display_name,
+                    description = client_description,
+                    _x_tapis_tenant = tapis_tenant,
+                    _x_tapis_user = "_tapis_pods",
+                    _tapis_debug = True
+                )
+                # Assuming you want to return a success response after updating
+                success_msg = f"Client {client_id} updated successfully."
+                logger.info(success_msg)
+            except Exception as e:
+                msg = (f"Error updating client_id: {client_id}. e: {e.args}, e: {e}, dir(e): {dir(e)}")
+                logger.warning(msg)
+                return JSONResponse(content = msg, status_code = 500)
+        msg = (f"Error creating client_id: {client_id}. e.message: {e.message}, e.request: {e.request}, e.response: {e.response}, tapis_debug = {td}")
+        logger.warning(msg)
+
+#       return JSONResponse(content = msg, status_code = 500)
+    oauth2_url = f"https://{tapis_domain}/v3/oauth2/authorize?client_id={client_id}&redirect_uri={auth_callback_url}&response_type=code"
+    logger.debug(f"oauth2 url is: {oauth2_url}")
+    return RedirectResponse(url=oauth2_url, status_code=302)
+    # result = {'path': auth_callback_url, 'code': 302}
+    return JSONResponse(content = str(result))
 
 @router.get(
     "/pods/{pod_id_net}/auth/callback",
@@ -431,40 +447,99 @@ def callback(pod_id_net, request: Request):
     parts = pod_id_net.split('-', 1)
     pod_id = parts[0]
     network_key = parts[1] if len(parts) > 1 else 'default'
-    pod = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
+    pod_init = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
+    
+    if pod_init.template:
+        # Derive the final pod object by combining the pod and templates
+        pod = combine_pod_and_template_recursively(pod_init, pod_init.template, tenant=g.request_tenant_id, site=g.site_id)
+    else:
+        pod = pod_init
 
     net_info = pod.networking.get(network_key, None)
     if not net_info:
         raise Exception(f"Pod {pod_id} does not have networking key that matches pod_id_net: {pod_id_net}")
 
-    pod_id, tapis_domain = net_info['url'].split('.pods.') ## Should return `mypod` & `tacc.tapis.io` with proper tenant and schmu
+    if type(net_info) is not dict:
+        try:
+            net_info = net_info.dict()
+        except Exception as e:
+            raise Exception(f"Error converting net_info to dict: {e}")
 
-    return JSONResponse(content = f"Callback for pod_id_net: {pod_id_net}, tapis_domain: {tapis_domain}", status_code = 200)
-    # return JSONResponse(content = str(dir(request)))
-    # code = request.args.get('code')
-    # if not code:
-    #     raise Exception(f"Error: No code in request; debug: {request.args}")
+    pod_id, tapis_domain = net_info['url'].split('.pods.') ## Should return `mypod` & `tacc.tapis.io` with proper tenant and schmu
+    tapis_tenant = tapis_domain.split('.')[0]
+    if not net_info["tapis_auth"]:
+        return JSONResponse(content = f"This pod does not have tapis_auth configured in networking for this pod_id_net: {pod_id_net}. Leave or remedy.", status_code = 403)        
+
+    client_id = f"PODS-SERVICE-{pod.k8_name}-{network_key}"
+
+    try:
+        res, td = t.authenticator.get_client(
+            client_id = client_id,
+            _x_tapis_tenant = tapis_tenant,
+            _x_tapis_user = "_tapis_pods",
+            _tapis_debug = True)
+    except Exception as e:
+        return JSONResponse(content=f"Error retrieving client: {e}", status_code=500)
+    
+    # return JSONResponse(content = f"Callback for pod_id_net: {pod_id_net}, tapis_domain: {tapis_domain}", status_code = 200)
+    code = request.query_params.get('code')
+    if not code:
+        raise Exception(f"Error: No code in request; debug: {request.query_params}")
+    logger.debug(f"GET /pods/{pod_id_net}/auth/callback - pod_auth_callback, code: {code}")
     url = f"https://{tapis_domain}/v3/oauth2/tokens"
     data = {
-        "code": "code",
-        "redirect_uri": f"https://{tapis_domain}/v3/oauth2/callback",
+        "code": code,
+        "redirect_uri": f"https://{tapis_domain}/v3/pods/{pod_id_net}/auth/callback",
         "grant_type": "authorization_code",
     }
+
     try:
-        response = requests.post(url, data=data, auth=(config['client_id'], config['client_key']))
+        logger.debug(dir(res))
+        response = requests.post(url, data=data, auth=(client_id, res.client_key))
         response.raise_for_status()
-        json_resp = json.loads(response.text)
+        logger.debug(f"GET /pods/{pod_id_net}/auth/callback callback request response: {response.text}")
+        json_resp = response.json()
+        #json_resp = json.loads(response.text)
         token = json_resp['result']['access_token']['access_token']
     except Exception as e:
         raise Exception(f"Error generating Tapis token; debug: {e}")
 
-    username = auth.get_username(token)
-    
-    response = make_response(redirect(os.environ['FRONT_URL'], code=302))
+    try:
+        logger.debug(f"GET /pods/{pod_id_net}/auth/callback - pod_auth_callback, token: {token}")
 
-    domain = os.environ.get('COOKIE_DOMAIN', ".pods.icicle.tapis.io")
-    response.set_cookie("token", token, domain=domain, secure=True)
-    response.set_cookie("username", username, domain=domain, secure=True)    
+        username = get_username(tapis_domain=tapis_domain, token=token)
+        
+        username = username
+        content = {"message": f"Callback for pod_id_net: {pod_id_net}, tapis_domain: {tapis_domain}, username: {username}, token: {token}"}
+
+#        response = JSONResponse(content=content, status_code=200)
+#        response = RedirectResponse(url=f"https://{tapis_domain}/v3/pods/{pod_id_net}/auth", status_code=302, headers={"X-Tapis-Username": username, "X-Tapis-Token": token})
+        #response = JSONResponse(content=content, status_code=200)
+        response = RedirectResponse(url=f"https://{net_info['url']}/auth", status_code=302)
+
+        domain = conf.get('COOKIE_DOMAIN', f"{tapis_domain}")
+        logger.debug(f"About to set cookies. domain: {domain}, net_info['url']: {net_info['url']}")
+
+        response.set_cookie("X-Tapis-Token", token, domain=net_info["url"], secure=True)
+        response.set_cookie("X-Tapis-Username", username, domain=net_info["url"], secure=True)    
+
+        response.set_cookie("X-Tapis-Token", token, domain=domain, secure=True)
+        response.set_cookie("X-Tapis-Username", username, domain=domain, secure=True)    
+
+        logger.debug(f"GET /pods/{pod_id_net}/auth/callback - pod_auth_callback last bit, response: {response}, net_info: {net_info['url']}")
+
+        return response
+    except Exception as e:
+        raise Exception(f"Error setting cookies; debug: {e}")
+
+    # response = make_response(redirect(os.environ['FRONT_URL'], code=302))
+
+    # domain = conf.get('COOKIE_DOMAIN', f".pods.{tapis_domain}")
+    # response.set_cookie("token", token, domain=domain, secure=True)
+    # response.set_cookie("username", username, domain=domain, secure=True)    
     
-    return response
+    # return response
+
+    #return JSONResponse(content = f"Callback for pod_id_net: {pod_id_net}, tapis_domain: {tapis_domain}, username: {username}, token: {token}", status_code = 200)
+    #return response
 
