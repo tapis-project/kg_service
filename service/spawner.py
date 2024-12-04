@@ -76,9 +76,10 @@ def spawn_pod(pod_id, tenant_id, site_id):
         logger.debug(f"Spawner found pod not requesting ON as expected. status_requested: {status_requested}. Returning and ignoring command.")
         return
 
+    logger.debug(f"Spawner found pod in REQUESTED status as expected. status: {status}. status_requested: {status_requested}")
     # Pod status was REQUESTED and status_requested was ON; moving on to SPAWNER_SETUP ----
     pod.status = SPAWNER_SETUP
-    pod.db_update() # f"spawner set status to SPAWNER_SETUP", doesn't need to be said with CREATING so soon.
+    pod.db_update(tenant=tenant_id, site=site_id) # f"spawner set status to SPAWNER_SETUP", doesn't need to be said with CREATING so soon.
     logger.debug(f"spawner has updated pod status to SPAWNER_SETUP")
 
     try:
@@ -90,7 +91,7 @@ def spawn_pod(pod_id, tenant_id, site_id):
 
     # If we get to this point we can update pod status
     pod.status = CREATING
-    pod.db_update(f"spawner set status to CREATING")
+    pod.db_update(f"spawner set status to CREATING", tenant=tenant_id, site=site_id)
     logger.debug(f"spawner has updated pod status to CREATING")
 
 def spawn_pvc(volume_id, tenant_id, site_id):

@@ -86,19 +86,23 @@ def rm_volume(k8_name):
 
     return volume_exists
 
-def graceful_rm_pod(pod, log = None):
+def graceful_rm_pod(pod, log=None):
     """
     This is async. Commands run, but deletion takes some time.
     Needs to delete pod, delete service, and change traefik to "offline" response.
     TODO Set status to shutting down. Something else will put into "STOPPED".
     """
-    logger.info(f"Top of shutdown pod for pod: {pod.k8_name}")
-    # Change pod status to SHUTTING DOWN
-    pod.status = DELETING
-    pod.db_update(log)
-    logger.debug(f"spawner has updated pod status to DELETING")
+    try:
+        logger.info(f"Top of shutdown pod for pod: {pod.k8_name}")
+        # Change pod status to SHUTTING DOWN
+        pod.status = DELETING
+        pod.db_update(log)
+        logger.debug(f"spawner has updated pod status to DELETING")
 
-    return rm_pod(pod.k8_name)
+        return rm_pod(pod.k8_name)
+    except Exception as e:
+        logger.error(f"Failed to gracefully remove pod {pod.k8_name}")
+        raise
 
 def graceful_rm_volume(volume):
     """
@@ -106,13 +110,17 @@ def graceful_rm_volume(volume):
     Needs to delete volume, delete volume, and change traefik to "offline" response.
     TODO Set status to shutting down. Something else will put into "STOPPED".
     """
-    logger.info(f"Top of shutdown volume for volume: {volume.k8_name}")
-    # Change pod status to SHUTTING DOWN
-    volume.status = DELETING
-    volume.db_update()
-    logger.debug(f"spawner has updated volume status to DELETING")
+    try:
+        logger.info(f"Top of shutdown volume for volume: {volume.k8_name}")
+        # Change volume status to SHUTTING DOWN
+        volume.status = DELETING
+        volume.db_update()
+        logger.debug(f"spawner has updated volume status to DELETING")
 
-    return rm_volume(volume.k8_name)
+        return rm_volume(volume.k8_name)
+    except Exception as e:
+        logger.error(f"Failed to gracefully remove volume {volume.k8_name}")
+        raise
 
 def check_k8_pods(k8_pods):
     """
@@ -238,7 +246,11 @@ def check_k8_pods(k8_pods):
         logs = get_k8_logs(k8_pod['k8_name'])
         if pod.logs != logs:
             pod.logs = logs
-            pod.db_update() # just adding logs, no action_logs needed.
+            logger.critical(f"UPDATING:: Before update with logs: {pod}")
+            try:
+                pod.db_update()  # just adding logs, no action_logs needed.
+            except Exception as e:
+                logger.error(f"Error updating pod logs: {e}", exc_info=True)
 
 def check_k8_services():
     # This is all for only the site specified in conf.site_id.
@@ -385,7 +397,7 @@ def main():
             logger.info("Successfully connected to dbs.")
             break
         except Exception as e:
-            logger.info(f"Can't connect to dbs yet idx: {idx}. e: {e.orig}") # args: {e.args} # add e.args for more detail
+            logger.info(f"Can't connect to dbs yet idx: {idx}. e: {e}") # args: {e.args} # add e.args for more detail
             # Health seems to take a few seconds to come up (due to database creation and api creation)
             # Increment and have a short wait
             idx += 1

@@ -1,9 +1,3 @@
-entryPoints:
-  web:
-   address: ":80"
-  dash:
-   address: ":8080"
-
 http:
   middlewares:
     path-strip-v3:
@@ -24,7 +18,7 @@ http:
         service: pods-service
         query: "/error-handler/{status}"
 
-    {% for pname,  pdata in http_proxy_info.items() -%}
+    {% for pname, pdata in http_proxy_info.items() -%}
     {% if pdata.tapis_auth -%}
     tapis-auth-{{ pname }}:
       forwardAuth:
@@ -56,6 +50,8 @@ http:
 
     {% for pname, pdata in http_proxy_info.items() -%}
     {{ pname }}:
+      entryPoints:
+       - web
       rule: "Host(`{{ pdata.url }}`)"
       {% if pdata.tapis_auth -%}
       middlewares:
@@ -79,11 +75,17 @@ http:
          - url: http://{{ pdata.k8_service }}:{{ pdata.routing_port }}
     {% endfor %}
 
+tcpServersTransport:
+  dialTimeout: 180s
+  dialKeepAlive: 180s
+
 {% if tcp_proxy_info or postgres_proxy_info -%}
 tcp:
   routers:{% endif %}
     {% for pname, pdata in tcp_proxy_info.items() -%}
     {{ pname }}:
+      entryPoints:
+       - web
       rule: "HostSNI(`{{ pdata.url }}`)"
       service: "{{ pname }}"
       tls:
