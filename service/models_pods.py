@@ -431,8 +431,21 @@ class Pod(TapisPodBaseFull, table=True, validate=True):
         return v
 
     # template
+    @validator('template')
+    def check_template(cls, v):
+        if v:
+            if not isinstance(v, str):
+                raise TypeError(f"template must be str. Got {type(v).__name__}.")
+
+            # Can't have @ before : in template.
+            if "@" in v:
+                first_segment, second_segment = v.split("@")
+                if not ":" in first_segment:
+                    raise ValueError(f"User specified @timestamp without :tag. Template should be formated as 'template_name:template_tag@tag_timestamp'. Got {v}")
+        return v
+
     @root_validator(pre=False)
-    def check_template(cls, values):
+    def check_template_global(cls, values):
         template = values.get('template')
         tenant_id = values.get('tenant_id')
         site_id = values.get('site_id')
