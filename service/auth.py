@@ -180,6 +180,7 @@ def check_route_permissions(request):
         ["/pods/{pod_id}/start", "GET", codes.ADMIN],
         ["/pods/{pod_id}/restart", "GET", codes.ADMIN],
         ["/pods/{pod_id}/derived", "GET", codes.READ],
+        ["/pods/{pod_id}/exec", "POST", codes.ADMIN],
         ["/pods/{pod_id_net}/auth", "GET", "NOT-API"],
         ["/pods/{pod_id_net}/auth/callback", "GET", "NOT-API"],
         ["/pods/{pod_id}", "GET", codes.READ],
