@@ -270,6 +270,7 @@ class PodBase(TapisApiModel):
     command: List[str] | None = Field(None, description = 'Command to run in pod. ex. `["sleep", "5000"]` or `["/bin/bash", "-c", "(exec myscript.sh)"]`', sa_column=Column(ARRAY(String)))
     arguments: List[str] | None = Field(None, description = "Arguments for the Pod's command.", sa_column=Column(ARRAY(String)))
     environment_variables: Dict[str, Any] = Field({}, description = "Environment variables to inject into k8 pod; Only for custom pods.", sa_column=Column(JSON))
+    #probes: Dict[str, Any] = Field({}, description = "Probes to run on pod. ex. `{\"livenessProbe\": {\"httpGet\": {\"path\": \"/\", \"port\": 5000}}}`", sa_column=Column(JSON))
     status_requested: str = Field("ON", description = "Status requested by user, `ON`, `OFF`, or `RESTART`.")
     volume_mounts: Dict[str, VolumeMount] = Field({}, description = "Key: Volume name. Value: List of strs specifying volume folders/files to mount in pod", sa_column=Column(JSON))
     time_to_stop_default: int = Field(43200, description = "Default time (sec) for pod to run from instance start. -1 for unlimited. 12 hour default.")
@@ -671,6 +672,13 @@ class UpdatePod(TapisApiModel):
     resources: Optional[Resources] = Field({}, description = 'Pod resource management {"cpu_limit": 3000, "mem_limit": 3000, "cpu_request": 500, "mem_limit": 500, "gpu": 0}', sa_column=Column(JSON))
 
 
+class ExecutePodCommand(TapisApiModel):
+    """
+    Object with fields that users are allowed to specify for the Volume class.
+    """
+    # Required
+    command: List[str] = Field(..., description = "Comma delimited list of commands to run in pod. ex. `['sleep', '5000']` or `['/bin/bash', '-c', '(exec myscript.sh)']`")
+    
 class PodResponseModel(PodBaseRead):
     """
     Response object for Pod class.
