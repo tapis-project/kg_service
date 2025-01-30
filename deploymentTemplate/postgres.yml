@@ -19,7 +19,8 @@ spec:
         args: [
           "-c", "ssl=on",
           "-c", "ssl_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem",
-          "-c", "ssl_key_file=/etc/ssl/private/ssl-cert-snakeoil.key"
+          "-c", "ssl_key_file=/etc/ssl/private/ssl-cert-snakeoil.key",
+          "-c", "max_connections=500"
         ]
         resources:
           requests:

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from models_pods import Pod, Password, PodResponse, PodPermissionsResponse, PodCredentialsResponse, PodLogsResponse
+from models_pods import Pod, Password, PodResponse, PodPermissionsResponse, PodCredentialsResponse, PodLogsResponse, ExecutePodCommand
 from models_misc import SetPermission
 from channels import CommandChannel
 from codes import OFF, ON, RESTART, REQUESTED, STOPPED
@@ -9,7 +9,8 @@ from tapisservice.tapisfastapi.utils import g, ok
 from tapisservice.config import conf
 from __init__ import t, BadRequestError
 from models_templates_tags import combine_pod_and_template_recursively
-
+from typing import List, Any
+from kubernetes_utils import run_k8_exec
 
 from tapisservice.logs import get_logger
 logger = get_logger(__name__)
@@ -130,6 +131,45 @@ async def set_pod_permission(pod_id, set_permission: SetPermission):
     pod.db_update(f"'{g.username}' set permission for '{inp_user}' to {inp_level}")
 
     return ok(result={"permissions": pod.permissions}, msg = "Pod permissions updated successfully.")
+
+
+@router.post(
+    "/pods/{pod_id}/exec",
+    tags=["Executions"],
+    summary="exec_pod_command",
+    operation_id="exec_pod_command",
+)#response_model=Any)
+async def exec_pod_command(pod_id, command: ExecutePodCommand):
+    """
+    Execute a command in a pod.
+
+    Returns the command output.
+    """
+
+    # TODO .display(), search, permissions
+    logger.info(f"POST /pods/{pod_id}/exec - Top of exec_pod_command.")
+    pod = Pod.db_get_with_pk(pod_id, tenant=g.request_tenant_id, site=g.site_id)
+
+    try:
+        logger.error(f"Running command in pod {pod_id}: {command.command}")
+        stdout, stderr = run_k8_exec(pod.k8_name, command.command)
+        success = True
+    except Exception as e:
+        logger.error(f"Error executing command in pod {pod_id}: {e}")
+        stdout, stderr = "", str(e)
+        success = False
+
+    logs = {
+        "stdout": stdout,
+        "stderr": stderr,
+        "success": success
+    }
+
+    #pod.logs.append(f"exec_pod_command ran by {g.username}: {command} \n stdout: {stdout}")
+    pod.db_update(f"'{g.username}' ran exec_pod_command with command: {command} \n stdout: {stdout}")
+
+
+    return ok(result={"logs": logs}, msg="Pod execution ran successfully." if success else "Pod execution failed.")
 
 
 @router.delete(

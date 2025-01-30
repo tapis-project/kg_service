@@ -1,0 +1,21 @@
+# debian based - ghcr.io/open-webui/open-webui:ollama
+# from ghcr.io/open-webui/open-webui:ollama
+FROM ollama/ollama:0.5.6
+RUN apt update
+RUN apt-get install -y wget btop htop
+RUN apt-get install -y nix
+RUN nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs
+RUN nix-channel --update
+ENV NIXPKGS_ALLOW_UNFREE=1
+RUN apt-get install nfs-common -y
+## allow_unfree required due to nvtop eula stuff
+#RUN NIXPKGS_ALLOW_UNFREE=1 nix-shell -p btop nvtop --run 'echo car'
+
+
+
+
+
+#RUN bsdtar --xfp ../nvtop-x86_64.AppImage
+#RUN apt install -y software-properties-common python3-launchpadlib # launchpad needed or add repo doesn't work as ppa's don't work on Debian.
+#RUN add-apt-repository ppa:flexiondotorg/nvtop
+#RUN apt update

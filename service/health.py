@@ -155,8 +155,14 @@ def check_k8_pods(k8_pods):
         # TODO We could try and make a get to the pod to check if it's actually alive.
 
         k8_pod_phase = k8_pod['pod_info'].status.phase
+        start_time = k8_pod['pod_info'].status.start_time
+        if start_time:
+            start_time = start_time.isoformat().replace('+00:00', '.000000')
+        else:
+            start_time = None
+
         status_container = {"phase": k8_pod_phase,
-                            "start_time": k8_pod['pod_info'].status.start_time.isoformat().replace('+00:00', '.000000'),
+                            "start_time": start_time,
                             "message": ""}
         
         # Get pod container state
