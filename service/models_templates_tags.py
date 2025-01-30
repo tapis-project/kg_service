@@ -41,7 +41,10 @@ def derive_template_info(input_template_name, tenant: str = g.request_tenant_id,
     if "@" in input_template_name:
         # we expect template_id:template_tag if @ is present
         template_id_n_tag, tag_timestamp = input_template_name.split("@")
-        template_id, template_tag = template_id_n_tag.split(":")
+        if ":" in template_id_n_tag:
+            template_id, template_tag = template_id_n_tag.split(":")
+        else:
+            raise ValueError(f"Error finding template. User specified '@' with no ':'. Template should be formated as 'template_name:template_tag@tag_timestamp'.")
     elif ":" in input_template_name:
         # If no @, we expect template_id:template_tag if : is present
         template_id, template_tag = input_template_name.split(":")

@@ -55,6 +55,7 @@ async def add_image(new_image: NewImage):
     # Create image object. Validates as well.
     image = Image(**new_image.dict())
 
+    metadata = {}
     pre_new_image = new_image.image
     post_new_image = image.image
     if pre_new_image != post_new_image and ":" in pre_new_image:
